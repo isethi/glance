@@ -1,13 +1,3 @@
-======
-Glance
-======
-
-Glance is a project that defines services for discovering, registering,
-retrieving and storing virtual machine images. The discovery and registration
-responsibilities are handled by the `glance-registry` component while the
-retrieval and storage responsiblities are handled by the `glance-api`
-component.
-
 
 Quick Start
 -----------
