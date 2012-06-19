@@ -181,12 +181,24 @@ class BaseTestCase(object):
                           self.context, UUID1, 'snap')
 
     def test_image_member_find(self):
+        id1 = 1
+        id2 = 2
+        id3 = 3
         TENANT1 = _gen_uuid()
         TENANT2 = _gen_uuid()
         fixtures = [
-            {'member': TENANT1, 'image_id': UUID1},
-            {'member': TENANT1, 'image_id': UUID2},
-            {'member': TENANT2, 'image_id': UUID1},
+            {'id': id1,
+            'member': TENANT1,
+            'image_id': UUID1,
+            'can_share': False,},
+            {'id': id2,
+            'member': TENANT1,
+            'image_id': UUID2,
+            'can_share': False,},
+            {'id': id3,
+            'member': TENANT2,
+            'image_id': UUID1,
+            'can_share': False,},
         ]
         for f in fixtures:
             self.db_api.image_member_create(self.context, copy.deepcopy(f))
@@ -208,11 +220,83 @@ class BaseTestCase(object):
                                                member=TENANT2,
                                                image_id=UUID1)
         _assertMemberListMatch([fixtures[2]], output)
+        
+        output = self.db_api.image_member_find(self.context,
+                                               image_member_id=id3)
+        _assertMemberListMatch([fixtures[2]], output)
 
+        output = self.db_api.image_member_find(self.context,
+                                               image_id=UUID1,
+                                               image_member_id=id3)
+        _assertMemberListMatch([fixtures[2]], output)
+        
         output = self.db_api.image_member_find(self.context,
                                                member=TENANT2,
                                                image_id=_gen_uuid())
         _assertMemberListMatch([], output)
+
+    def test_image_member_get_all(self):
+        id1 = 1
+        id2 = 2
+        id3 = 3
+        TENANT1 = _gen_uuid()
+        TENANT2 = _gen_uuid()
+        fixtures = [
+            {'id': id1,
+            'member': TENANT1,
+            'image_id': UUID1,
+            'can_share': False,},
+            {'id': id2,
+            'member': TENANT1,
+            'image_id': UUID2,
+            'can_share': False,},
+            {'id': id3,
+            'member': TENANT2,
+            'image_id': UUID1,
+            'can_share': False,},
+        ]
+        for f in fixtures:
+            self.db_api.image_member_create(self.context, copy.deepcopy(f))
+
+        output = self.db_api.image_member_get_all(self.context, image_id=UUID1)
+        self.assertEqual(fixtures[2]['member'], output[0]['member'])
+        self.assertEqual(fixtures[0]['member'], output[1]['member'])
+        self.assertEqual(fixtures[2]['id'], output[0]['id'])
+        self.assertEqual(fixtures[0]['id'], output[1]['id'])
+
+        output = self.db_api.image_member_get_all(self.context,
+                                                  image_id=UUID1, limit=1)
+        self.assertEqual(fixtures[2]['member'], output[0]['member'])
+        self.assertEqual(fixtures[2]['id'], output[0]['id'])
+        self.assertEqual(len(output),1)
+        
+        output = self.db_api.image_member_get_all(self.context,
+                                                  image_id=UUID1, limit=1,
+                                                  marker=id3)
+        self.assertEqual(fixtures[0]['member'], output[0]['member'])
+        self.assertEqual(fixtures[0]['id'], output[0]['id'])
+        self.assertEqual(len(output),1)
+        
+        output = self.db_api.image_member_get_all(self.context,
+                                                  image_id=UUID1, limit=1,
+                                                  marker=id3, sort_dir='asc')
+        self.assertEqual(len(output),0)
+        
+        output = self.db_api.image_member_get_all(self.context,
+                                                  image_id=UUID1, limit=3,
+                                                  sort_key='id', sort_dir='asc')
+        self.assertEqual(fixtures[0]['member'], output[0]['member'])
+        self.assertEqual(fixtures[2]['member'], output[1]['member'])
+        self.assertEqual(fixtures[0]['id'], output[0]['id'])
+        self.assertEqual(fixtures[2]['id'], output[1]['id'])
+        self.assertEqual(len(output),2)
+        
+        self.assertRaises(exception.NotFound, self.db_api.image_member_get_all,
+                          self.context, image_id=UUID1, marker=id2)
+        
+        self.assertRaises(exception.InvalidSortKey,
+                          self.db_api.image_member_get_all,
+                          self.context, image_id=UUID1, sort_key='blah')
 
 
 class BaseTestCaseSameTime(BaseTestCase):
