@@ -68,14 +68,18 @@ def _image_property_format(image_id, name, value):
     }
 
 
-def _image_member_format(image_id, tenant_id, can_share):
-    return {
-        'image_id': image_id,
-        'member': tenant_id,
-        'can_share': can_share,
+def _image_member_format(values):
+    image_member = {
+        'image_id': values['image_id'],
+        'member': values['member'],
+        'can_share': values.get('can_share', False),
         'deleted': False,
-        'deleted_at': None,
-    }
+        'deleted_at': None, }
+    if 'id' in values.keys():
+        image_member['id'] = values['id']
+    if 'created_at' in values.keys():
+        image_member['created_at'] = values['created_at']
+    return image_member
 
 
 def _image_format(image_id, **values):
@@ -216,13 +220,15 @@ def image_property_delete(context, prop_ref, session=None):
 
 
 @log_call
-def image_member_find(context, image_id=None, member=None):
+def image_member_find(context, image_id=None, member=None,
+                    image_member_id=None):
     filters = []
     if image_id is not None:
         filters.append(lambda m: m['image_id'] == image_id)
     if member is not None:
         filters.append(lambda m: m['member'] == member)
-
+    if image_member_id is not None:
+        filters.append(lambda m: m['id'] == image_member_id)
     members = DATA['members']
     for f in filters:
         members = filter(f, members)
@@ -230,10 +236,39 @@ def image_member_find(context, image_id=None, member=None):
 
 
 @log_call
+def image_member_get_all(context, image_id, marker=None, limit=None,
+                         sort_key='created_at', sort_dir='desc'):
+    reverse = False
+    start = 0
+    end = -1
+    image_members = DATA['members']
+    image_members = filter(lambda m: m['image_id'] == image_id and\
+                           m['deleted'] == False, image_members)
+    if image_members and not image_members[0].get(sort_key):
+        raise exception.InvalidSortKey()
+    keyfn = lambda x: (x[sort_key], x['created_at'], x['id'])
+    reverse = sort_dir == 'desc'
+    image_members.sort(key=keyfn, reverse=reverse)
+    if marker is None:
+        start = 0
+    else:
+        # Check that the image is accessible
+        image_get(context, image_id)
+        exists = False
+        for i, image_member in enumerate(image_members):
+            if image_member['id'] == marker:
+                start = i + 1
+                exists = True
+                break
+        if not exists:
+            raise exception.NotFound("Marker not found")
+    end = start + limit if limit else None
+    return image_members[start:end]
+
+
+@log_call
 def image_member_create(context, values):
-    member = _image_member_format(values['image_id'],
-                                  values['member'],
-                                  values.get('can_share', False))
+    member = _image_member_format(values)
     global DATA
     DATA['members'].append(member)
     return member

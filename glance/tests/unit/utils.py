@@ -63,12 +63,6 @@ class FakeDB(object):
         ]
         [simple_db.image_create(None, image) for image in images]
 
-        members = [
-            {'image_id': UUID1, 'member': TENANT1, 'can_share': True},
-            {'image_id': UUID1, 'member': TENANT2, 'can_share': False},
-        ]
-        [simple_db.image_member_create(None, member) for member in members]
-
         simple_db.image_tag_set_all(None, UUID1, ['ping', 'pong'])
 
     @staticmethod

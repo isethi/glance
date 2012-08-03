@@ -757,7 +757,8 @@ def image_member_delete(context, memb_ref, session=None):
     return memb_ref
 
 
-def image_member_find(context, image_id=None, member=None, session=None):
+def image_member_find(context, image_id=None, image_member_id=None,
+                      member=None, session=None):
     """Find all members that meet the given criteria
 
     :param image_id: identifier of image entity
@@ -775,6 +776,38 @@ def image_member_find(context, image_id=None, member=None, session=None):
         query = query.filter_by(member=member)
     if not can_show_deleted(context):
         query = query.filter_by(deleted=False)
+    if image_member_id is not None:
+        query = query.filter_by(id=image_member_id)
+    return query.all()
+
+
+def image_member_get_all(context, image_id, marker=None, limit=None,
+                         sort_key='created_at', sort_dir='desc'):
+    """
+    Get all images that match zero or more filters.
+
+    :param marker: image member id after which to start page
+    :param limit: maximum number of image members to return
+    :param sort_key: image member attribute by which results should be sorted
+    :param sort_dir: direction in which results should be sorted (asc, desc)
+    """
+
+    session = get_session()
+    query = session.query(models.ImageMember)
+    marker_image_member = None
+    if marker is not None:
+        try:
+            marker_image_member = image_member_find(context, image_id=image_id,
+                                                image_member_id=marker)[0]
+        except IndexError:
+            raise exception.NotFound("Marker %s not found for image %s"\
+                                    % (marker, image_id))
+    query = query.filter_by(image_id=image_id)
+    query = query.filter_by(deleted=False)
+    query = paginate_query(query, models.ImageMember, limit,
+                           [sort_key, 'created_at', 'id'],
+                           marker=marker_image_member,
+                           sort_dir=sort_dir)
 
     return query.all()
 
