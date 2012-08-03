@@ -22,7 +22,11 @@ from glance.common import exception
 from glance.common import utils
 from glance.common import wsgi
 import glance.db
+from glance.openstack.common import cfg
 import glance.schema
+
+
+CONF = cfg.CONF
 
 
 class Controller(object):
@@ -30,18 +34,28 @@ class Controller(object):
         self.db_api = db or glance.db.get_api()
         self.db_api.configure_db()
 
-    def index(self, req, image_id):
-        #NOTE(bcwaldon): call image_get to ensure user has permission
+    def index(self, req, image_id, marker=None, limit=None,
+                 sort_key='created_at', sort_dir='desc'):
+         #NOTE(bcwaldon): call image_get to ensure user has permission
         self.db_api.image_get(req.context, image_id)
 
-        members = self.db_api.image_member_find(req.context, image_id=image_id)
+        if limit is None:
+            limit = CONF.limit_param_default
+        limit = min(CONF.api_limit_max, limit)
 
-        #TODO(bcwaldon): We have to filter on non-deleted members
-        # manually. This should be done for us in the db api
-        return {
-            'access_records': filter(lambda m: not m['deleted'], members),
-            'image_id': image_id,
-        }
+        try:
+            members = self.db_api.image_member_get_all(req.context,
+                                                       image_id=image_id,
+                                                       marker=marker,
+                                                       limit=limit,
+                                                       sort_key=sort_key,
+                                                       sort_dir=sort_dir)
+        except exception.InvalidSortKey as e:
+            raise webob.exc.HTTPBadRequest(explanation=unicode(e))
+        except exception.NotFound as e:
+            raise webob.exc.HTTPBadRequest(explanation=unicode(e))
+
+        return {'access_records': members, 'image_id': image_id}
 
     def show(self, req, image_id, tenant_id):
         members = self.db_api.image_member_find(req.context,
@@ -120,6 +134,54 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         body['member'] = body.pop('tenant_id')
         output['access_record'] = body
         return output
+
+    def _validate_limit(self, limit):
+        try:
+            limit = int(limit)
+        except ValueError:
+            msg = _("limit param must be an integer")
+            raise webob.exc.HTTPBadRequest(explanation=msg)
+
+        if limit < 0:
+            msg = _("limit param must be positive")
+            raise webob.exc.HTTPBadRequest(explanation=msg)
+
+        return limit
+
+    def _validate_sort_dir(self, sort_dir):
+        if sort_dir not in ['asc', 'desc']:
+            msg = _('Invalid sort direction: %s' % sort_dir)
+            raise webob.exc.HTTPBadRequest(explanation=msg)
+
+        return sort_dir
+
+    def _validate_marker(self, marker):
+        try:
+            marker = int(marker)
+        except ValueError:
+            msg = _("marker param must be an integer")
+            raise webob.ex.c.HTTPBadRequest(explanation=msg)
+
+        return marker
+
+    def index(self, request):
+        image_id = request.path.split("/")[-2]
+        limit = request.params.get('limit', None)
+        marker = request.params.get('marker', None)
+        sort_dir = request.params.get('sort_dir', 'desc')
+        query_params = {
+            'image_id': image_id,
+            'sort_key': request.params.get('sort_key', 'created_at'),
+            'sort_dir': self._validate_sort_dir(sort_dir),
+        }
+
+        if marker is not None:
+            query_params['marker'] = self._validate_marker(marker)
+
+        if limit is not None:
+            query_params['limit'] = self._validate_limit(limit)
+
+        return query_params
 
 
 class ResponseSerializer(wsgi.JSONResponseSerializer):

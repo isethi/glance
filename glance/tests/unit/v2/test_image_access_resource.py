@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
 import json
 
 import webob
@@ -26,32 +27,70 @@ import glance.tests.unit.utils as unit_test_utils
 import glance.tests.utils as test_utils
 
 
+dt1 = datetime.datetime.now()
+dt2 = datetime.datetime.now()
+dt3 = datetime.datetime.now()
+
+
 class TestImageAccessController(test_utils.BaseTestCase):
 
     def setUp(self):
         super(TestImageAccessController, self).setUp()
         self.db = unit_test_utils.FakeDB()
+        self._create_members()
         self.controller = glance.api.v2.image_access.Controller(self.db)
         glance.store.create_stores()
+
+    def _create_members(self):
+
+        members = [
+            {'id': 1,
+            'image_id': unit_test_utils.UUID1,
+            'member': unit_test_utils.TENANT1,
+            'can_share': True,
+            'created_at': dt1},
+            {'id': 2,
+            'image_id': unit_test_utils.UUID1,
+            'member': unit_test_utils.TENANT2,
+            'can_share': False,
+            'created_at': dt2},
+            {'id': 3,
+            'image_id': unit_test_utils.UUID1,
+            'member': unit_test_utils.TENANT2,
+            'can_share': True,
+            'created_at': dt3},
+        ]
+
+        [self.db.image_member_create(None, member) for member in members]
 
     def test_index(self):
         req = unit_test_utils.get_fake_request()
         output = self.controller.index(req, unit_test_utils.UUID1)
         expected = {
             'access_records': [
-                {
-                    'image_id': unit_test_utils.UUID1,
-                    'member': unit_test_utils.TENANT1,
-                    'can_share': True,
-                    'deleted': False,
-                    'deleted_at': None,
+                {'id': 3,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': True,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt3,
                 },
-                {
-                    'image_id': unit_test_utils.UUID1,
-                    'member': unit_test_utils.TENANT2,
-                    'can_share': False,
-                    'deleted': False,
-                    'deleted_at': None,
+                {'id': 2,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': False,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt2,
+                },
+                {'id': 1,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT1,
+                'can_share': True,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt1,
                 },
             ],
             'image_id': unit_test_utils.UUID1,
@@ -62,10 +101,10 @@ class TestImageAccessController(test_utils.BaseTestCase):
         req = unit_test_utils.get_fake_request()
         output = self.controller.index(req, unit_test_utils.UUID2)
         expected = {
-            'access_records': [],
             'image_id': unit_test_utils.UUID2,
+            'access_records': []
         }
-        self.assertEqual(expected, output)
+        self.assertEquals(expected, output)
 
     def test_index_nonexistant_image(self):
         req = unit_test_utils.get_fake_request()
@@ -79,11 +118,13 @@ class TestImageAccessController(test_utils.BaseTestCase):
         tenant_id = unit_test_utils.TENANT1
         output = self.controller.show(req, image_id, tenant_id)
         expected = {
+            'id': 1,
             'image_id': image_id,
             'member': tenant_id,
             'can_share': True,
             'deleted': False,
             'deleted_at': None,
+            'created_at': dt1,
         }
         self.assertEqual(expected, output)
 
@@ -140,6 +181,96 @@ class TestImageAccessDeserializer(test_utils.BaseTestCase):
         request.body = json.dumps(fixture)
         output = self.deserializer.create(request)
         self.assertEqual(expected, output)
+
+    def test_index(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?limit=1&marker=2' % image_id
+        request = unit_test_utils.get_fake_request(path=path)
+        output = self.deserializer.index(request)
+        expected = {'image_id': image_id,
+                    'limit': 1,
+                    'marker': 2,
+                    'sort_key': 'created_at',
+                    'sort_dir': 'desc'}
+        self.assertEqual(output, expected)
+
+    def test_index_non_integer_limit(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?limit=blah' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        self.assertRaises(webob.exc.HTTPBadRequest,
+                          self.deserializer.index, request)
+
+    def test_index_zero_limit(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?limit=0' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        expected = {'image_id': image_id,
+                    'limit': 0,
+                    'sort_key': 'created_at',
+                    'sort_dir': 'desc'}
+        output = self.deserializer.index(request)
+        self.assertEqual(expected, output)
+
+    def test_index_negative_limit(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?limit=-1' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        self.assertRaises(webob.exc.HTTPBadRequest,
+                          self.deserializer.index, request)
+
+    def test_index_fraction(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?limit=.1' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        self.assertRaises(webob.exc.HTTPBadRequest,
+                          self.deserializer.index, request)
+
+    def test_index_marker(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?marker=1' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        output = self.deserializer.index(request)
+        self.assertEqual(output.get('marker'), 1)
+
+    def test_index_marker_not_specified(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        output = self.deserializer.index(request)
+        self.assertFalse('marker' in output)
+
+    def test_index_limit_not_specified(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        output = self.deserializer.index(request)
+        self.assertFalse('limit' in output)
+
+    def test_index_sort_key_id(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?sort_key=id' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        output = self.deserializer.index(request)
+        expected = {'image_id': image_id, 'sort_key': 'id', 'sort_dir': 'desc'}
+        self.assertEqual(output, expected)
+
+    def test_index_sort_dir_asc(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?sort_dir=asc' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        output = self.deserializer.index(request)
+        expected = {'image_id': image_id,
+                    'sort_key': 'created_at',
+                    'sort_dir': 'asc'}
+        self.assertEqual(output, expected)
+
+    def test_index_sort_dir_bad_value(self):
+        image_id = unit_test_utils.UUID1
+        path = '/images/%s/access?sort_dir=blah' % image_id
+        request = unit_test_utils.get_fake_request(path)
+        self.assertRaises(webob.exc.HTTPBadRequest,
+                          self.deserializer.index, request)
 
 
 class TestImageAccessSerializer(test_utils.BaseTestCase):
