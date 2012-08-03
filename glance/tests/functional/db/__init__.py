@@ -346,7 +346,6 @@ class BaseTestCase(object):
 
     def test_image_member_get_all(self):
         fixtures = self.create_image_members()
-
         output = self.db_api.image_member_get_all(self.context, image_id=UUID1)
         self.assertEqual(fixtures[2]['member'], output[0]['member'])
         self.assertEqual(fixtures[0]['member'], output[1]['member'])
@@ -373,7 +372,6 @@ class BaseTestCase(object):
 
     def test_image_member_get_all_with_sorting(self):
         fixtures = self.create_image_members()
-
         output = self.db_api.image_member_get_all(self.context,
                                                   image_id=UUID1, limit=1,
                                                   marker=3, sort_dir='asc')
