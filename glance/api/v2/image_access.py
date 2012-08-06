@@ -14,6 +14,7 @@
 #    under the License.
 
 import json
+import urllib
 
 import webob.exc
 
@@ -38,7 +39,7 @@ class Controller(object):
                  sort_key='created_at', sort_dir='desc'):
          #NOTE(bcwaldon): call image_get to ensure user has permission
         self.db_api.image_get(req.context, image_id)
-
+        result = {'image_id': image_id}
         if limit is None:
             limit = CONF.limit_param_default
         limit = min(CONF.api_limit_max, limit)
@@ -50,12 +51,16 @@ class Controller(object):
                                                        limit=limit,
                                                        sort_key=sort_key,
                                                        sort_dir=sort_dir)
+            if len(members) != 0 and len(members) == limit:
+                result['next_marker'] = members[-1]['id']
         except exception.InvalidSortKey as e:
             raise webob.exc.HTTPBadRequest(explanation=unicode(e))
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
 
-        return {'access_records': members, 'image_id': image_id}
+        result['access_records'] = members
+
+        return result
 
     def show(self, req, image_id, tenant_id):
         members = self.db_api.image_member_find(req.context,
@@ -204,14 +209,24 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
         response.content_type = 'application/json'
 
     def index(self, response, result):
+        params = dict(response.request.params)
+        params.pop('marker', None)
+        query = urllib.urlencode(params)
         access_records = result['access_records']
         first_link = '/v2/images/%s/access' % result['image_id']
         body = {
-            'access_records': [self._format_access(a)
+               'access_records': [self._format_access(a)
                                for a in access_records],
-            'first': first_link,
-            'schema': '/v2/schemas/image/accesses',
+               'first': first_link,
+               'schema': '/v2/schemas/image/accesses',
         }
+        if query:
+            body['first'] = '%s?%s' % (body['first'], query)
+        if 'next_marker' in result:
+            params['marker'] = result['next_marker']
+            next_query = urllib.urlencode(params)
+            body['next'] = '/v2/images/%s/access?%s' %\
+                            (result['image_id'], next_query)
         response.body = json.dumps(body)
         response.content_type = 'application/json'
 

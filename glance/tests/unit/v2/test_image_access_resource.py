@@ -97,6 +97,61 @@ class TestImageAccessController(test_utils.BaseTestCase):
         }
         self.assertEqual(expected, output)
 
+    def test_index_next_marker(self):
+        req = unit_test_utils.get_fake_request()
+        output = self.controller.index(req, unit_test_utils.UUID1, marker=3,
+                                        limit=1)
+        expected = {
+            'access_records': [
+                {'id': 2,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': False,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt2,
+                },
+            ],
+            'next_marker': 2,
+            'image_id': unit_test_utils.UUID1,
+        }
+        self.assertEqual(expected, output)
+
+    def test_index_no_next_marker(self):
+        self.maxDiff = None
+        req = unit_test_utils.get_fake_request()
+        output = self.controller.index(req, unit_test_utils.UUID1, limit=4)
+        expected = {
+            'access_records': [
+                {'id': 3,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': True,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt3,
+                },
+                {'id': 2,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': False,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt2,
+                },
+                {'id': 1,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT1,
+                'can_share': True,
+                'deleted': False,
+                'deleted_at': None,
+                'created_at': dt1,
+                },
+            ],
+            'image_id': unit_test_utils.UUID1,
+        }
+        self.assertEqual(expected, output)
+
     def test_index_zero_records(self):
         req = unit_test_utils.get_fake_request()
         output = self.controller.index(req, unit_test_utils.UUID2)
@@ -341,7 +396,9 @@ class TestImageAccessSerializer(test_utils.BaseTestCase):
            'schema': '/v2/schemas/image/accesses',
 
         }
-        response = webob.Response()
+        url = '/v2/images/%s/access' % unit_test_utils.UUID1
+        request = webob.Request.blank(url)
+        response = webob.Response(request=request)
         self.serializer.index(response, result)
         self.assertEqual(expected, json.loads(response.body))
         self.assertEqual('application/json', response.content_type)
@@ -351,7 +408,9 @@ class TestImageAccessSerializer(test_utils.BaseTestCase):
             'access_records': [],
             'image_id': unit_test_utils.UUID1,
         }
-        response = webob.Response()
+        url = '/v2/images/%s/access' % unit_test_utils.UUID1
+        request = webob.Request.blank(url)
+        response = webob.Response(request=request)
         self.serializer.index(response, result)
         first_link = '/v2/images/%s/access' % unit_test_utils.UUID1
         expected = {
@@ -359,6 +418,88 @@ class TestImageAccessSerializer(test_utils.BaseTestCase):
             'first': first_link,
             'schema': '/v2/schemas/image/accesses',
         }
+        self.assertEqual(expected, json.loads(response.body))
+        self.assertEqual('application/json', response.content_type)
+
+    def test_index_next_marker(self):
+        self.maxDiff = None
+        fixtures = [
+            {
+                'id': 2,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': True,
+            },
+        ]
+        result = {
+            'access_records': fixtures,
+            'next_marker': 2,
+            'image_id': unit_test_utils.UUID1,
+        }
+        expected = {
+            'access_records': [
+                {
+                    'tenant_id': unit_test_utils.TENANT2,
+                    'can_share': True,
+                    'self': ('/v2/images/%s/access/%s' %
+                                    (unit_test_utils.UUID1,
+                                     unit_test_utils.TENANT2)),
+                    'schema': '/v2/schemas/image/access',
+                    'image': '/v2/images/%s' % unit_test_utils.UUID1,
+                },
+            ],
+           'first': '/v2/images/%s/access?limit=1' % unit_test_utils.UUID1,
+           'next': '/v2/images/%s/access?marker=2&limit=1' %
+                            (unit_test_utils.UUID1),
+           'schema': '/v2/schemas/image/accesses',
+
+        }
+        url = '/v2/images/%s/access?limit=1' % unit_test_utils.UUID1
+        request = webob.Request.blank(url)
+        response = webob.Response(request=request)
+        self.serializer.index(response, result)
+        self.assertEqual(expected, json.loads(response.body))
+        self.assertEqual('application/json', response.content_type)
+
+    def test_index_forwarding_parameters(self):
+        self.maxDiff = None
+        fixtures = [
+            {
+                'id': 2,
+                'image_id': unit_test_utils.UUID1,
+                'member': unit_test_utils.TENANT2,
+                'can_share': True,
+            },
+        ]
+        result = {
+            'access_records': fixtures,
+            'next_marker': 2,
+            'image_id': unit_test_utils.UUID1,
+        }
+        params = 'sort_key=created_at&sort_dir=desc&limit=1'
+        expected = {
+            'access_records': [
+                {
+                    'tenant_id': unit_test_utils.TENANT2,
+                    'can_share': True,
+                    'self': ('/v2/images/%s/access/%s' %
+                                    (unit_test_utils.UUID1,
+                                     unit_test_utils.TENANT2)),
+                    'schema': '/v2/schemas/image/access',
+                    'image': '/v2/images/%s' % unit_test_utils.UUID1,
+                },
+            ],
+           'first':
+           '/v2/images/%s/access?%s' % (unit_test_utils.UUID1, params),
+           'next': '/v2/images/%s/access?%s&marker=2' %
+                    (unit_test_utils.UUID1, params),
+           'schema': '/v2/schemas/image/accesses',
+
+        }
+        url = '/v2/images/%s/access?%s' % (unit_test_utils.UUID1, params)
+        request = webob.Request.blank(url)
+        response = webob.Response(request=request)
+        self.serializer.index(response, result)
         self.assertEqual(expected, json.loads(response.body))
         self.assertEqual('application/json', response.content_type)
 
