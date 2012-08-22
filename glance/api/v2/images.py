@@ -26,6 +26,7 @@ from glance.common import exception
 from glance.common import utils
 from glance.common import wsgi
 import glance.db
+from glance import notifier
 from glance.openstack.common import cfg
 import glance.openstack.common.log as logging
 from glance.openstack.common import timeutils
@@ -38,10 +39,11 @@ CONF = cfg.CONF
 
 
 class ImagesController(object):
-    def __init__(self, db_api=None, policy_enforcer=None):
+    def __init__(self, db_api=None, policy_enforcer=None, notifier=None):
         self.db_api = db_api or glance.db.get_api()
         self.db_api.configure_db()
         self.policy = policy_enforcer or policy.Enforcer()
+        self.notifier = notifier or notifier.Notifier()
 
     def _enforce(self, req, action):
         """Authorize an action against our policies"""

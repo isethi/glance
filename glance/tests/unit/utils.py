@@ -121,3 +121,20 @@ class FakePolicyEnforcer(object):
 
     def set_rules(self, rules):
         self.rules = rules
+
+
+class FakeNotifier(object):
+    def __init__(self, *_args, **kwargs):
+        LOG.debug(_("Fake Notifier created"))
+
+    def warn(self, event_type, payload):
+        LOG.debug(_("Fake Notification WARN %(event_type)s %(payload)")
+                    % locals())
+
+    def info(self, event_type, payload):
+        LOG.debug(_("Fake Notification INFO  %(event_type)s"
+                   % locals()))
+
+    def error(self, event_type, payload):
+        LOG.debug(_("Fake Notification ERROR %(event_type)s %(payload)")
+                    % locals())
