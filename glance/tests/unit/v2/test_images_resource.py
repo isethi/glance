@@ -75,9 +75,11 @@ class TestImagesController(test_utils.BaseTestCase):
         super(TestImagesController, self).setUp()
         self.db = unit_test_utils.FakeDB()
         self.policy = unit_test_utils.FakePolicyEnforcer()
+        self.notifier = unit_test_utils.FakeNotifier()
         self._create_images()
         self.controller = glance.api.v2.images.ImagesController(self.db,
-                                                                self.policy)
+                                                                self.policy,
+                                                                self.notifier)
         glance.store.create_stores()
 
     def _create_images(self):

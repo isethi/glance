@@ -21,14 +21,15 @@ from glance.common import exception
 from glance.common import utils
 from glance.common import wsgi
 import glance.db
-import glance.notifier
+from glance import notifier
 import glance.store
 
 
 class ImageDataController(object):
-    def __init__(self, db_api=None, store_api=None):
+    def __init__(self, db_api=None, store_api=None, notifier=None):
         self.db_api = db_api or glance.db.get_api()
         self.db_api.configure_db()
+        self.notifier = notifier or notifier.Notifier()
         self.store_api = store_api or glance.store
         self.store_api.create_stores()
 
@@ -44,13 +45,16 @@ class ImageDataController(object):
         try:
             location, size, checksum = self.store_api.add_to_backend(
                     req.context, 'file', image_id, data, size)
+
+            v2.update_image_read_acl(req, self.db_api, image)
+            values = {'location': location, 'size': size, 'checksum': checksum}
+            self.db_api.image_update(req.context, image_id, values)
+            updated_image = self._get_image(req.context, image_id)
+            self.notifier.info('image.upload', updated_image)
+
         except exception.Duplicate:
             raise webob.exc.HTTPConflict()
-
-        v2.update_image_read_acl(req, self.db_api, image)
-
-        values = {'location': location, 'size': size, 'checksum': checksum}
-        self.db_api.image_update(req.context, image_id, values)
+            self.notifier.error('image.upload', msg)
 
     def download(self, req, image_id):
         ctx = req.context
@@ -82,6 +86,9 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
 
 
 class ResponseSerializer(wsgi.JSONResponseSerializer):
+    def __init__(self, notifier=None):
+        self.notifier = notifier or notifier.Notifier()
+
     def download(self, response, result):
         size = result['meta']['size']
         checksum = result['meta']['checksum']
@@ -89,9 +96,8 @@ class ResponseSerializer(wsgi.JSONResponseSerializer):
         response.headers['Content-Type'] = 'application/octet-stream'
         if checksum:
             response.headers['Content-MD5'] = checksum
-        notifier = glance.notifier.Notifier()
         response.app_iter = common.size_checked_iter(
-                response, result['meta'], size, result['data'], notifier)
+                response, result['meta'], size, result['data'], self.notifier)
 
     def upload(self, response, result):
         response.status_int = 201
