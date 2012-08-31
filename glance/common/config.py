@@ -54,6 +54,10 @@ common_opts = [
     cfg.IntOpt('image_size_cap', default=1099511627776,
                help=_("Maximum size of image a user can upload in bytes. "
                       "Defaults to 1099511627776 bytes (1 TB).")),
+    cfg.BoolOpt('enable_v1_api', default=True,
+                help=_("Whether glance v1 api is accessible. ")),
+    cfg.BoolOpt('enable_v2_api', default=True,
+                help=_("Whether glance v2 api is accessible. ")),
 ]
 
 CONF = cfg.CONF

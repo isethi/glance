@@ -14,3 +14,20 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+
+import paste
+
+
+from glance.openstack.common import cfg
+
+
+CONF = cfg.CONF
+
+
+def root_app_factory(loader, global_conf, **local_conf):
+    if not CONF.enable_v1_api:
+        del local_conf['/v1']
+    if not CONF.enable_v2_api:
+        del local_conf['/v2']
+    return paste.urlmap.urlmap_factory(loader, global_conf, **local_conf)
