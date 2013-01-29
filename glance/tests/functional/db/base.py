@@ -521,7 +521,10 @@ class TestDriver(base.IsolatedUnitTest):
                                                   'image_id': UUID1})
         member_id = member.pop('id')
 
-        expected = {'member': TENANT1, 'image_id': UUID1, 'can_share': False}
+        expected = {'member': TENANT1,
+                    'image_id': UUID1,
+                    'can_share': False,
+                   }
         self.assertEqual(expected, member)
 
         member = self.db_api.image_member_update(self.context,
@@ -529,7 +532,9 @@ class TestDriver(base.IsolatedUnitTest):
                                                  {'can_share': True})
 
         member.pop('id')
-        expected = {'member': TENANT1, 'image_id': UUID1, 'can_share': True}
+        expected = {'member': TENANT1,
+                    'image_id': UUID1,
+                    'can_share': True,}
         self.assertEqual(expected, member)
 
         members = self.db_api.image_member_find(self.context,

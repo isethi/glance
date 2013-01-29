@@ -111,6 +111,11 @@ class Image(object):
             raise exception.ProtectedImageDelete(image_id=self.image_id)
         self.status = 'deleted'
 
+    def get_member_repo(self, context):
+        image_member_repo = glance.db.ImageMemberRepo(context, self.db_api,
+                                                      self.image_id)
+        return image_member_repo
+
 
 def _proxy(target, attr):
 
@@ -171,3 +176,56 @@ class ImageProxy(object):
 
     def delete(self):
         self.base.delete()
+
+
+class ImageMember(object):
+
+    def __init__(self, image_id, member_id, created_at, updated_at, status=None):
+        self.image_id = image_id
+        self.member_id = member_id
+        self.status = status
+        self.created_at = created_at
+        self.updated_at = updated_at
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        if status not in ('rejected', 'accepted', None):
+            msg = "Status must be either \"accepted\" or \"rejected\" or None"
+            raise ValueError(msg)
+        self._status = status
+
+
+class ImageMemberFactory(object):
+
+    def new_image_member(self, image_id, member_id=None, status=None):
+        if member_id is None:
+            member_id = uuidutils.generate_uuid()
+        created_at = timeutils.utcnow()
+        updated_at = created_at
+
+        return ImageMember(image_id=image_id, member_id=member_id, status=status,
+                     created_at=created_at, updated_at=updated_at)
+
+
+class ImageMemberRepoProxy(object):
+    def __init__(self, base):
+        self.base = base
+
+    def get(self, image_id):
+        return self.base.get(image_id)
+
+    def list(self, *args, **kwargs):
+        return self.base.list(*args, **kwargs)
+
+    def add(self, image):
+        return self.base.add(image)
+
+    def save(self, image):
+        return self.base.save(image)
+
+    def remove(self, image):
+        return self.base.remove(image)
