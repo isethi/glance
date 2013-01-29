@@ -178,3 +178,38 @@ class ImageRepo(object):
         # NOTE(markwash): don't update tags?
         new_values = self.db_api.image_destroy(self.context, image.image_id)
         image.updated_at = new_values['updated_at']
+
+
+class ImageMemberRepo(object):
+
+    def __init__(self, context, db_api, image_id):
+        self.context = context
+        self.db_api = db_api
+        self.image_id = image_id
+
+    def list(self):
+        db_members = self.db_api.image_member_find(self.context,
+                                                image_id=self.image_id)
+        image_members = []
+        for db_member in db_members:
+            image_members.append(_format_image_member_from_db(db_member))
+
+        return image_members
+
+    def _format_image_member_from_db(self, db_image_member):
+        return glance.domain.ImageMember(
+            image_id=self.image_id,
+            member_id=db_image_member['id'],
+            status=db_image_member['status'],
+            created_at=db_image_member['created_at'],
+            updated_at=db_image_member['updated_at']
+        )
+
+    def _format_image_member_to_db(self, image_member):
+        return {
+            'image_id': image_member.image_id,
+            'member_id': image_member.member_id,
+            'status': image_member.status,
+            'created_at': image_member.created_at,
+            'updated_at': image_member.updated_at
+        }
