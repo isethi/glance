@@ -78,11 +78,14 @@ def _image_property_format(image_id, name, value):
 
 
 def _image_member_format(image_id, tenant_id, can_share):
+    dt = timeutils.utcnow()
     return {
         'id': uuidutils.generate_uuid(),
         'image_id': image_id,
         'member': tenant_id,
         'can_share': can_share,
+        'created_at': dt,
+        'updated_at': dt,
     }
 
 

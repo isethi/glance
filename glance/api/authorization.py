@@ -50,6 +50,10 @@ class ImageRepoProxy(glance.domain.ImageRepoProxy):
         images = self.image_repo.list(*args, **kwargs)
         return [proxy_image(self.context, i) for i in images]
 
+    def list_images_for_member(self, *args, **kwargs):
+        images = self.image_repo.list_images_for_member(*args, **kwargs)
+        return [proxy_image(self.context, i) for i in images]
+
 
 class ImageFactoryProxy(object):
 
@@ -142,4 +146,8 @@ class ImmutableImageProxy(object):
 
     def delete(self):
         message = _("You are not permitted to delete this image.")
+        raise exception.Forbidden(message)
+
+    def get_member_repo(self, context, gateway):
+        message = _("You are not permitted to access this image.")
         raise exception.Forbidden(message)

@@ -734,6 +734,9 @@ def _image_member_format(member_ref):
         'image_id': member_ref['image_id'],
         'member': member_ref['member'],
         'can_share': member_ref['can_share'],
+        'member': member_ref['member'],
+        'created_at': member_ref['created_at'],
+        'updated_at': member_ref['updated_at']
     }
 
 
