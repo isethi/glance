@@ -507,23 +507,52 @@ class TestDriver(base.IsolatedUnitTest):
         self.assertEqual(1, len(memberships))
         actual = memberships[0]
         actual.pop('id')
+        actual.pop('created_at')
+        actual.pop('updated_at')
         expected = {
             'member': TENANT1,
             'image_id': UUID1,
             'can_share': False,
+            'status': None
         }
         self.assertEqual(expected, actual)
 
-    def test_image_member_update(self):
+    def test_image_member_create_with_status(self):
+        memberships = self.db_api.image_member_find(self.context)
+        self.assertEqual([], memberships)
+
+        TENANT1 = uuidutils.generate_uuid()
+        self.db_api.image_member_create(self.context,
+                                        {'member': TENANT1, 'image_id': UUID1,
+                                         'status': 'accepted'})
+
+        memberships = self.db_api.image_member_find(self.context)
+        self.assertEqual(1, len(memberships))
+        actual = memberships[0]
+        actual.pop('id')
+        actual.pop('created_at')
+        actual.pop('updated_at')
+        expected = {
+            'member': TENANT1,
+            'image_id': UUID1,
+            'can_share': False,
+            'status': 'accepted'
+        }
+        self.assertEqual(expected, actual)
+
+    def test_image_member_update_can_share(self):
         TENANT1 = uuidutils.generate_uuid()
         member = self.db_api.image_member_create(self.context,
                                                  {'member': TENANT1,
                                                   'image_id': UUID1})
         member_id = member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
 
         expected = {'member': TENANT1,
                     'image_id': UUID1,
                     'can_share': False,
+                    'status': None
                    }
         self.assertEqual(expected, member)
 
@@ -532,9 +561,12 @@ class TestDriver(base.IsolatedUnitTest):
                                                  {'can_share': True})
 
         member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
         expected = {'member': TENANT1,
                     'image_id': UUID1,
-                    'can_share': True,}
+                    'can_share': True,
+                    'status': None}
         self.assertEqual(expected, member)
 
         members = self.db_api.image_member_find(self.context,
@@ -542,6 +574,46 @@ class TestDriver(base.IsolatedUnitTest):
                                                 image_id=UUID1)
         member = members[0]
         member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
+        self.assertEqual(expected, member)
+
+    def test_image_member_update_status(self):
+        TENANT1 = uuidutils.generate_uuid()
+        member = self.db_api.image_member_create(self.context,
+                                                 {'member': TENANT1,
+                                                  'image_id': UUID1})
+        member_id = member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
+
+        expected = {'member': TENANT1,
+                    'image_id': UUID1,
+                    'can_share': False,
+                    'status': None
+                   }
+        self.assertEqual(expected, member)
+
+        member = self.db_api.image_member_update(self.context,
+                                                 member_id,
+                                                 {'status': 'accepted'})
+
+        member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
+        expected = {'member': TENANT1,
+                    'image_id': UUID1,
+                    'can_share': False,
+                    'status': 'accepted'}
+        self.assertEqual(expected, member)
+
+        members = self.db_api.image_member_find(self.context,
+                                                member=TENANT1,
+                                                image_id=UUID1)
+        member = members[0]
+        member.pop('id')
+        member.pop('created_at')
+        member.pop('updated_at')
         self.assertEqual(expected, member)
 
     def test_image_member_find(self):
