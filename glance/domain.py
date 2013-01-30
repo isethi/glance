@@ -180,34 +180,20 @@ class ImageProxy(object):
 
 class ImageMember(object):
 
-    def __init__(self, image_id, member_id, created_at, updated_at, status=None):
+    def __init__(self, image_id, member_id, created_at, updated_at, id=None):
+        self.id = id
         self.image_id = image_id
         self.member_id = member_id
-        self.status = status
         self.created_at = created_at
         self.updated_at = updated_at
 
-    @property
-    def status(self):
-        return self._status
-
-    @status.setter
-    def status(self, status):
-        if status not in ('rejected', 'accepted', None):
-            msg = "Status must be either \"accepted\" or \"rejected\" or None"
-            raise ValueError(msg)
-        self._status = status
-
-
 class ImageMemberFactory(object):
 
-    def new_image_member(self, image_id, member_id=None, status=None):
-        if member_id is None:
-            member_id = uuidutils.generate_uuid()
+    def new_image_member(self, image_id, member_id):
         created_at = timeutils.utcnow()
         updated_at = created_at
 
-        return ImageMember(image_id=image_id, member_id=member_id, status=status,
+        return ImageMember(image_id=image_id, member_id=member_id,
                      created_at=created_at, updated_at=updated_at)
 
 
@@ -221,11 +207,8 @@ class ImageMemberRepoProxy(object):
     def list(self, *args, **kwargs):
         return self.base.list(*args, **kwargs)
 
-    def add(self, image):
-        return self.base.add(image)
+    def add(self, image_member):
+        return self.base.add(image_member)
 
-    def save(self, image):
-        return self.base.save(image)
-
-    def remove(self, image):
-        return self.base.remove(image)
+    def remove(self, image_member):
+        return self.base.remove(image_member)

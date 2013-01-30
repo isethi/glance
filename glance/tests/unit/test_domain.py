@@ -159,11 +159,12 @@ class TestImageMemberFactory(test_utils.BaseTestCase):
 
     def test_minimal_new_image_member(self):
         image_id = '1111-2222-3333-4444'
-        image_member = self.image_member_factory.new_image_member(image_id)
+        member_id = 'fake-member-id'
+        image_member = self.image_member_factory.new_image_member(image_id,
+                                                                  member_id)
         self.assertEqual(image_member.image_id, image_id)
         self.assertTrue(image_member.created_at is not None)
         self.assertEqual(image_member.created_at, image_member.updated_at)
-        self.assertEqual(image_member.status, None)
         self.assertTrue(image_member.member_id is not None)
 
 
@@ -174,10 +175,3 @@ class TestImageMember(test_utils.BaseTestCase):
         self.image_member_factory = domain.ImageMemberFactory()
         img_id = '1111-2222-3333-4444'
         self.image_member = self.image_member_factory.new_image_member(img_id)
-
-    def test_status_enumerated(self):
-        self.image_member.status = 'accepted'
-        self.image_member.status = 'rejected'
-        self.image_member.status = None
-        self.assertRaises(ValueError, setattr,
-                          self.image_member, 'status', 'ellison')

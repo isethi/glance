@@ -187,29 +187,54 @@ class ImageMemberRepo(object):
         self.db_api = db_api
         self.image_id = image_id
 
-    def list(self):
-        db_members = self.db_api.image_member_find(self.context,
-                                                image_id=self.image_id)
-        image_members = []
-        for db_member in db_members:
-            image_members.append(_format_image_member_from_db(db_member))
-
-        return image_members
-
     def _format_image_member_from_db(self, db_image_member):
         return glance.domain.ImageMember(
+            id=db_image_member['id'],
             image_id=self.image_id,
-            member_id=db_image_member['id'],
-            status=db_image_member['status'],
+            member_id=db_image_member['member'],
             created_at=db_image_member['created_at'],
             updated_at=db_image_member['updated_at']
         )
 
     def _format_image_member_to_db(self, image_member):
-        return {
-            'image_id': image_member.image_id,
-            'member_id': image_member.member_id,
-            'status': image_member.status,
-            'created_at': image_member.created_at,
-            'updated_at': image_member.updated_at
-        }
+        image_member = {'image_id': self.image_id,
+                        'member': image_member.member_id,
+                        'created_at': image_member.created_at}
+        if image_member.get('id'):
+            image_member['id'] = image_member.id
+        return image_member
+
+    def list(self):
+        db_members = self.db_api.image_member_find(self.context,
+                                                image_id=self.image_id)
+        image_members = []
+        for db_member in db_members:
+            image_members.append(self._format_image_member_from_db(db_member))
+
+        return image_members
+
+    def add(self, image_member):
+        image_member_values = self._format_image_member_to_db(image_member)
+        new_values = self.db_api.image_member_create(self.context,
+                                                     image_member_values)
+        image_member.created_at = new_values['created_at']
+        image_member.updated_at = new_values['updated_at']
+        image_member.id = new_values['id']
+
+    def remove(self, image_member):
+        image_member_values = self._format_image_member_to_db(image_member)
+        try:
+            self.db_api.image_member_delete(self.context, image_member.id)
+        except (exception.NotFound, exception.Forbidden):
+            raise exception.NotFound(member_id=image_member.id)
+
+    def get(self, member_id):
+        try:
+            db_api_image_member = self.db_api.image_member_find(self.context,
+                                                self.image_id, member_id)
+            if len(db_api_image_member) == 0:
+                raise exception.NotFound()
+        except (exception.NotFound, exception.Forbidden):
+            raise exception.NotFound()
+        image_member = self._format_image_member_from_db(db_api_image_member[0])
+        return image_member
