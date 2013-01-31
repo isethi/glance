@@ -220,6 +220,7 @@ class ImageMemberRepo(object):
         image_member.created_at = new_values['created_at']
         image_member.updated_at = new_values['updated_at']
         image_member.id = new_values['id']
+        return self._format_image_member_from_db(new_values)
 
     def remove(self, image_member):
         image_member_values = self._format_image_member_to_db(image_member)

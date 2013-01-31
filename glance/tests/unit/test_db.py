@@ -212,13 +212,18 @@ class TestImageMemberRepo(test_utils.BaseTestCase):
         image_member_ids = set([i.member_id for i in image_members])
         self.assertEqual(set([TENANT2, TENANT3]), image_member_ids)
 
+    def test_list_no_members(self):
+        self.image_member_repo_uuid2 = glance.db.ImageMemberRepo(self.context,
+                                                           self.db, UUID2)
+        image_members = self.image_member_repo_uuid2.list()
+        image_member_ids = set([i.member_id for i in image_members])
+        self.assertEqual(set([]), image_member_ids)
+
     def test_add_image_member(self):
         image_member = self.image_member_factory.new_image_member(UUID1,
                                                                   TENANT4)
         self.assertTrue(image_member.id is None)
-        self.image_member_repo.add(image_member)
-        self.assertTrue(image_member.id is not None)
-        retreived_image_member = self.image_member_repo.get(TENANT4)
+        retreived_image_member = self.image_member_repo.add(image_member)
         self.assertEqual(retreived_image_member.id, image_member.id)
         self.assertEqual(retreived_image_member.image_id,
                          image_member.image_id)
@@ -230,3 +235,9 @@ class TestImageMemberRepo(test_utils.BaseTestCase):
         self.image_member_repo.remove(image_member)
         self.assertRaises(exception.NotFound, self.image_member_repo.get,
                           TENANT2)
+
+    def test_remove_image_member_does_not_exist(self):
+        fake_member = glance.domain.ImageMemberFactory().new_image_member(UUID2,
+                                                                       TENANT4)
+        self.assertRaises(exception.NotFound, self.image_member_repo.remove,
+                          fake_member)

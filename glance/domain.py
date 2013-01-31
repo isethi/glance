@@ -14,6 +14,7 @@
 #    under the License.
 
 from glance.common import exception
+import glance.db
 from glance.openstack.common import timeutils
 from glance.openstack.common import uuidutils
 
@@ -111,8 +112,8 @@ class Image(object):
             raise exception.ProtectedImageDelete(image_id=self.image_id)
         self.status = 'deleted'
 
-    def get_member_repo(self, context):
-        image_member_repo = glance.db.ImageMemberRepo(context, self.db_api,
+    def get_member_repo(self, context, gateway):
+        image_member_repo = glance.db.ImageMemberRepo(context, gateway.db_api,
                                                       self.image_id)
         return image_member_repo
 
@@ -176,6 +177,9 @@ class ImageProxy(object):
 
     def delete(self):
         self.base.delete()
+
+    def get_member_repo(self, context, gateway):
+        return self.base.get_member_repo(context, gateway)
 
 
 class ImageMember(object):
