@@ -81,4 +81,18 @@ class API(wsgi.Router):
                        action='delete',
                        conditions={'method': ['DELETE']})
 
+        image_members_resource = image_members.create_resource()
+        mapper.connect('/images/{image_id}/members',
+                       controller=image_members_resource,
+                       action='index',
+                       conditions={'method': ['GET']})
+        mapper.connect('/images/{image_id}/members',
+                       controller=image_members_resource,
+                       action='create',
+                       conditions={'method': ['PUT']})
+        mapper.connect('/images/{image_id}/members/{member_id}',
+                       controller=image_members_resource,
+                       action='delete',
+                       conditions={'method': ['DELETE']})
+
         super(API, self).__init__(mapper)

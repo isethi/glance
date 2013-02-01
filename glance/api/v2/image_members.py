@@ -93,6 +93,9 @@ class ImageMembersController(object):
 
 
 def create_resource():
-    """Images resource factory method"""
+    """Image Members resource factory method"""
+    deserializer = wsgi.JSONRequestDeserializer()
+    serializer = wsgi.JSONResponseSerializer()
     controller = ImageMembersController()
-    return wsgi.Resource(controller, serializer=serializer)
+    return wsgi.Resource(controller, serializer=serializer,
+                         deserializer=deserializer)
