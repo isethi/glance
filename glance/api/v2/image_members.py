@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from webob import Response
 import webob.exc
 
 from glance.api import policy
@@ -47,11 +48,18 @@ class ImageMembersController(object):
             new_member = image_member_factory.new_image_member(image_id,
                                                                member_id)
             member = member_repo.add(new_member)
-            return member
+            return self._format_image_member(member)
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
         except exception.Forbidden as e:
             raise webob.exc.HTTPForbidden(explanation=unicode(e))
+
+    def _format_image_member(self, image_member):
+        image_member_view = {}
+        attributes = ['member_id', 'image_id', 'created_at', 'updated_at']
+        for key in attributes:
+            image_member_view[key] = getattr(image_member, key)
+        return image_member_view
 
     @utils.mutating
     def index(self, req, image_id):
@@ -59,7 +67,10 @@ class ImageMembersController(object):
         try:
             image = image_repo.get(image_id)
             member_repo = image.get_member_repo(req.context, self.gateway)
-            return member_repo.list()
+            members = []
+            for member in member_repo.list():
+                members.append(self._format_image_member(member))
+            return dict(members=members)
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
         except exception.Forbidden as e:
@@ -86,6 +97,7 @@ class ImageMembersController(object):
             member_repo = image.get_member_repo(req.context, self.gateway)
             member = member_repo.get(member_id)
             member_repo.remove(member)
+            return Response(body='', status=200)
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
         except exception.Forbidden as e:
@@ -97,5 +109,4 @@ def create_resource():
     deserializer = wsgi.JSONRequestDeserializer()
     serializer = wsgi.JSONResponseSerializer()
     controller = ImageMembersController()
-    return wsgi.Resource(controller, serializer=serializer,
-                         deserializer=deserializer)
+    return wsgi.Resource(controller, deserializer, serializer)

@@ -16,6 +16,7 @@
 #    under the License.
 
 from glance.api.v2 import image_data
+from glance.api.v2 import image_members
 from glance.api.v2 import image_tags
 from glance.api.v2 import images
 from glance.api.v2 import schemas
@@ -86,7 +87,7 @@ class API(wsgi.Router):
                        controller=image_members_resource,
                        action='index',
                        conditions={'method': ['GET']})
-        mapper.connect('/images/{image_id}/members',
+        mapper.connect('/images/{image_id}/members/{member_id}',
                        controller=image_members_resource,
                        action='create',
                        conditions={'method': ['PUT']})

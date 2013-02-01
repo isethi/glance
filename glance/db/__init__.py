@@ -200,8 +200,6 @@ class ImageMemberRepo(object):
         image_member = {'image_id': self.image_id,
                         'member': image_member.member_id,
                         'created_at': image_member.created_at}
-        if image_member.get('id'):
-            image_member['id'] = image_member.id
         return image_member
 
     def list(self):
@@ -210,7 +208,6 @@ class ImageMemberRepo(object):
         image_members = []
         for db_member in db_members:
             image_members.append(self._format_image_member_from_db(db_member))
-
         return image_members
 
     def add(self, image_member):

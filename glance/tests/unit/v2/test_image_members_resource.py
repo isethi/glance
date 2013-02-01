@@ -113,17 +113,17 @@ class TestImageMembersController(test_utils.BaseTestCase):
     def test_index(self):
         request = unit_test_utils.get_fake_request()
         output = self.controller.index(request, UUID1)
-        self.assertEqual(2, len(output))
-        actual = set([image_member.member_id
-                      for image_member in output])
+        self.assertEqual(2, len(output['members']))
+        actual = set([image_member['member_id']
+                      for image_member in output['members']])
         expected = set([TENANT2, TENANT3])
         self.assertEqual(actual, expected)
 
     def test_index_no_members(self):
         request = unit_test_utils.get_fake_request()
         output = self.controller.index(request, UUID2)
-        self.assertEqual(0, len(output))
-        self.assertEqual(set([]), set(output))
+        self.assertEqual(0, len(output['members']))
+        self.assertEqual({'members':[]}, output)
 
     def test_index_image_does_not_exist(self):
         request = unit_test_utils.get_fake_request()
@@ -136,8 +136,8 @@ class TestImageMembersController(test_utils.BaseTestCase):
         member_id = TENANT3
         output = self.controller.create(request, image_id=image_id,
                                         member_id=member_id)
-        self.assertEqual(UUID2, output.image_id)
-        self.assertEqual(TENANT3, output.member_id)
+        self.assertEqual(UUID2, output['image_id'])
+        self.assertEqual(TENANT3, output['member_id'])
 
     def test_create_image_does_not_exist(self):
         request = unit_test_utils.get_fake_request()
@@ -151,7 +151,8 @@ class TestImageMembersController(test_utils.BaseTestCase):
         member_id = self.image_members[0]['member']
         image_id = self.image_members[0]['image_id']
         self.assertEqual(len(self.image_members), 2)
-        self.controller.delete(request, image_id, member_id)
+        res = self.controller.delete(request, image_id, member_id)
+        self.assertEqual(res.body, '')
         found_member = self.db.image_member_find(image_id, member_id)
         self.assertEqual(found_member, [])
 
