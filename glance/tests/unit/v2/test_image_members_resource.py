@@ -36,10 +36,13 @@ BASE_URI = unit_test_utils.BASE_URI
 
 UUID1 = 'c80a1a6c-bd1f-41c5-90ee-81afedb1d58d'
 UUID2 = 'a85abd86-55b3-4d5b-b0b4-5d0a6e6042fc'
+UUID3 = '971ec09a-8067-4bc8-a91f-ae3557f1c4c7'
+UUID4 = '6bbe7cc2-eae7-4c0f-b50d-a7160b0c6a86'
 
 TENANT1 = '6838eb7b-6ded-434a-882c-b344c77fe8df'
 TENANT2 = '2c014f32-55eb-467d-8fcb-4bd706012f81'
 TENANT3 = '5a3e60e8-cfa9-4a9e-a90a-62b42cea92b8'
+TENANT4 = 'c6c87f25-8a94-47ed-8c83-053c25f42df4'
 
 
 def _db_fixture(id, **kwargs):
@@ -97,6 +100,9 @@ class TestImageMembersController(test_utils.BaseTestCase):
                         is_public=True, location='%s/%s' % (BASE_URI, UUID1)),
             _db_fixture(UUID2, owner=TENANT1, name='2',
                         size=512, is_public=True),
+            _db_fixture(UUID3, owner=TENANT3, name='3',
+                        size=512, is_public=True),
+            _db_fixture(UUID4, owner=TENANT4, name='4', size=1024),
         ]
         [self.db.image_create(None, image) for image in self.images]
 
@@ -106,6 +112,8 @@ class TestImageMembersController(test_utils.BaseTestCase):
         self.image_members = [
             _db_image_member_fixture(UUID1, TENANT2),
             _db_image_member_fixture(UUID1, TENANT3),
+            _db_image_member_fixture(UUID3, TENANT4),
+            _db_image_member_fixture(UUID4, TENANT1),
         ]
         self.image_members = [self.db.image_member_create(None, image_member)
         for image_member in self.image_members]
@@ -125,10 +133,10 @@ class TestImageMembersController(test_utils.BaseTestCase):
         self.assertEqual(0, len(output['members']))
         self.assertEqual({'members':[]}, output)
 
-    def test_index_image_does_not_exist(self):
+    def test_index_private_image(self):
         request = unit_test_utils.get_fake_request()
-        self.assertRaises(webob.exc.HTTPNotFound, self.controller.index,
-                          request, 'fake-image-id')
+        self.assertRaises(webob.exc.HTTPForbidden, self.controller.index,
+                          request, UUID4)
 
     def test_create(self):
         request = unit_test_utils.get_fake_request()
@@ -139,6 +147,11 @@ class TestImageMembersController(test_utils.BaseTestCase):
         self.assertEqual(UUID2, output['image_id'])
         self.assertEqual(TENANT3, output['member_id'])
 
+    def test_create_private_image(self):
+        request = unit_test_utils.get_fake_request()
+        self.assertRaises(webob.exc.HTTPForbidden, self.controller.create,
+                          request, UUID4, TENANT2)
+
     def test_create_image_does_not_exist(self):
         request = unit_test_utils.get_fake_request()
         image_id = 'fake-image-id'
@@ -148,13 +161,17 @@ class TestImageMembersController(test_utils.BaseTestCase):
 
     def test_delete(self):
         request = unit_test_utils.get_fake_request()
-        member_id = self.image_members[0]['member']
-        image_id = self.image_members[0]['image_id']
-        self.assertEqual(len(self.image_members), 2)
+        member_id = TENANT2
+        image_id = UUID1
         res = self.controller.delete(request, image_id, member_id)
         self.assertEqual(res.body, '')
         found_member = self.db.image_member_find(image_id, member_id)
         self.assertEqual(found_member, [])
+
+    def test_delete_private_image(self):
+        request = unit_test_utils.get_fake_request()
+        self.assertRaises(webob.exc.HTTPForbidden, self.controller.delete,
+                          request, UUID4, TENANT1)
 
     def test_delete_image_does_not_exist(self):
         request = unit_test_utils.get_fake_request()
