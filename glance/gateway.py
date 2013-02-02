@@ -41,8 +41,8 @@ class Gateway(object):
         image_member_factory = glance.domain.ImageMemberFactory()
         return image_member_factory
 
-    def get_repo(self, context):
-        image_repo = glance.db.ImageRepo(context, self.db_api)
+    def get_repo(self, context, member_id=None):
+        image_repo = glance.db.ImageRepo(context, self.db_api, member_id)
         store_image_repo = glance.store.ImageRepoProxy(
                 context, self.store_api, image_repo)
         policy_image_repo = policy.ImageRepoProxy(

@@ -62,9 +62,10 @@ IMAGE_ATTRS = BASE_MODEL_ATTRS | set(['name', 'status', 'size',
 
 class ImageRepo(object):
 
-    def __init__(self, context, db_api):
+    def __init__(self, context, db_api, member_id=None):
         self.context = context
         self.db_api = db_api
+        self.member_id = member_id
 
     def get(self, image_id):
         try:
@@ -75,6 +76,14 @@ class ImageRepo(object):
         tags = self.db_api.image_tag_get_all(self.context, image_id)
         image = self._format_image_from_db(db_api_image, tags)
         return image
+
+    def list_images_for_member(self):
+        db_api_image_members = self.db_api.image_member_find(self.context,
+                                            member=self.member_id)
+        images = []
+        for db_api_image_member in db_api_image_members:
+            images.append(self.get(db_api_image_member['image_id']))
+        return images
 
     def list(self, marker=None, limit=None, sort_key='created_at',
              sort_dir='desc', filters=None):

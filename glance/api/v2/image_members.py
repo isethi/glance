@@ -99,6 +99,32 @@ class ImageMembersController(object):
         except exception.Forbidden as e:
             raise webob.exc.HTTPForbidden(explanation=unicode(e))
 
+    def index_shared_images(self, req, member_id):
+        """
+        Retrieves list of image memberships for the given member.
+
+        :param req: the Request object coming from the wsgi layer
+        :param member_id: the opaque member identifier
+        :retval The response body is a mapping of the following form::
+
+            {'shared_images': [
+                {'image_id': <IMAGE>},
+                ...
+            ]}
+        """
+        try:
+            image_repo = self.gateway.get_repo(req.context, member_id)
+            shared_images = []
+            for image in image_repo.list_images_for_member():
+                shared_images.append({'image_id': image.image_id})
+            if len(shared_images) == 0:
+                 raise exception.NotFound()
+        except exception.NotFound as e:
+            raise webob.exc.HTTPNotFound(explanation=unicode(e))
+        except exception.Forbidden as e:
+            raise webob.exc.HTTPForbidden(explanation=unicode(e))
+        return dict(shared_images=shared_images)
+
     def _update_store_acls(self, req, image):
         location_uri = image.location
         public = image.visibility == 'public'

@@ -113,6 +113,7 @@ class TestImageMembersController(test_utils.BaseTestCase):
             _db_image_member_fixture(UUID1, TENANT2),
             _db_image_member_fixture(UUID1, TENANT3),
             _db_image_member_fixture(UUID3, TENANT4),
+            _db_image_member_fixture(UUID3, TENANT2),
             _db_image_member_fixture(UUID4, TENANT1),
         ]
         self.image_members = [self.db.image_member_create(None, image_member)
@@ -197,10 +198,18 @@ class TestImageMembersController(test_utils.BaseTestCase):
         self.assertEqual(found_member, [])
         self.assertRaises(webob.exc.HTTPNotFound, self.controller.delete,
                         request, image_id, member_id)
-#
-#    def test_delete_image_member_forbidden(self):
-#        request = unit_test_utils.get_fake_request(user='fake-user')
-#        member_id = TENANT2
-#        image_id = UUID1
-#        self.assertRaises(webob.exc.HTTPForbidden, self.controller.delete,
-#                        request, image_id, member_id)
+
+    def test_shared_image_index(self):
+        request = unit_test_utils.get_fake_request()
+        member_id = TENANT2
+        images = self.controller.index_shared_images(request, TENANT2)
+        expected_images = {'shared_images': [{'image_id': UUID1},
+                                             {'image_id': UUID3}]}
+        self.assertEquals(images, expected_images)
+
+    def test_shared_image_index_member_not_found(self):
+        request = unit_test_utils.get_fake_request()
+        member_id = 'fake-member'
+        self.assertRaises(webob.exc.HTTPNotFound,
+                          self.controller.index_shared_images,
+                          request, member_id)

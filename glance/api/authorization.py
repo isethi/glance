@@ -25,6 +25,8 @@ def is_image_mutable(context, image):
     if image.owner is None or context.owner is None:
         return False
 
+    print image.owner
+    print context.owner
     return image.owner == context.owner
 
 
@@ -48,6 +50,10 @@ class ImageRepoProxy(glance.domain.ImageRepoProxy):
 
     def list(self, *args, **kwargs):
         images = self.image_repo.list(*args, **kwargs)
+        return [proxy_image(self.context, i) for i in images]
+
+    def list_images_for_member(self, *args, **kwargs):
+        images = self.image_repo.list_images_for_member(*args, **kwargs)
         return [proxy_image(self.context, i) for i in images]
 
 

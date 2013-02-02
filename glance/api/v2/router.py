@@ -95,5 +95,9 @@ class API(wsgi.Router):
                        controller=image_members_resource,
                        action='delete',
                        conditions={'method': ['DELETE']})
+        mapper.connect('/shared-images/{member_id}',
+                       controller=image_members_resource,
+                       action='index_shared_images',
+                       conditions={'method': ['GET']})
 
         super(API, self).__init__(mapper)

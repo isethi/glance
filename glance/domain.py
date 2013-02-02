@@ -142,6 +142,9 @@ class ImageRepoProxy(object):
     def list(self, *args, **kwargs):
         return self.base.list(*args, **kwargs)
 
+    def list_images_for_member(self, *args, **kwargs):
+        return self.base.list_images_for_member(*args, **kwargs)
+
     def add(self, image):
         return self.base.add(image)
 
@@ -190,6 +193,7 @@ class ImageMember(object):
         self.member_id = member_id
         self.created_at = created_at
         self.updated_at = updated_at
+
 
 class ImageMemberFactory(object):
 
