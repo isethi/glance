@@ -38,8 +38,13 @@ class ImageMembersController(object):
         self.gateway = glance.gateway.Gateway(self.db_api, self.store_api,
                                               self.notifier, self.policy)
 
+    def _check_can_access_image_members(self, context):
+        if context.owner is None and not context.is_admin:
+            raise webob.exc.HTTPUnauthorized(_("No authenticated user"))
+
     @utils.mutating
     def create(self, req, image_id, member_id):
+        self._check_can_access_image_members(req.context)
         image_repo = self.gateway.get_repo(req.context)
         image_member_factory = self.gateway.get_image_member_factory(req.context)
         try:
@@ -48,6 +53,7 @@ class ImageMembersController(object):
             new_member = image_member_factory.new_image_member(image_id,
                                                                member_id)
             member = member_repo.add(new_member)
+            self._update_store_acls(req, image)
             return self._format_image_member(member)
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
@@ -76,32 +82,43 @@ class ImageMembersController(object):
         except exception.Forbidden as e:
             raise webob.exc.HTTPForbidden(explanation=unicode(e))
 
-    #@utils.mutating
-    #def update(self, req, image_id, member_id, status):
-    #    image_repo = self.gateway.get_repo(req.context)
-    #    try:
-    #        image = image_repo.get(image_id)
-    #        image_member = image.get_member(member_id)
-    #        image_member.update(status)
-    #        image_repo.save(image)
-    #    except exception.NotFound as e:
-    #        raise webob.exc.HTTPNotFound(explanation=unicode(e))
-    #    except exception.Forbidden as e:
-    #        raise webob.exc.HTTPForbidden(explanation=unicode(e))
-
     @utils.mutating
     def delete(self, req, image_id, member_id):
+        self._check_can_access_image_members(req.context)
+
         image_repo = self.gateway.get_repo(req.context)
         try:
             image = image_repo.get(image_id)
             member_repo = image.get_member_repo(req.context, self.gateway)
             member = member_repo.get(member_id)
             member_repo.remove(member)
+            self._update_store_acls(req, image)
             return Response(body='', status=200)
         except exception.NotFound as e:
             raise webob.exc.HTTPNotFound(explanation=unicode(e))
         except exception.Forbidden as e:
             raise webob.exc.HTTPForbidden(explanation=unicode(e))
+
+    def _update_store_acls(self, req, image):
+        location_uri = image.location
+        public = image.visibility == 'public'
+        member_repo = image.get_member_repo(req.context, self.gateway)
+        if location_uri:
+            try:
+                read_tenants = []
+                write_tenants = []
+                members = member_repo.list()
+                if members:
+                    for member in members:
+                        read_tenants.append(member.member_id)
+                glance.store.set_acls(req.context, location_uri, public=public,
+                               read_tenants=read_tenants,
+                               write_tenants=write_tenants)
+            except exception.UnknownScheme:
+                msg = _("Store for image_id not found: %s") % image_id
+                raise webob.exc.HTTPBadRequest(explanation=msg,
+                                               request=req,
+                                               content_type='text/plain')
 
 
 def create_resource():
