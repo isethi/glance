@@ -83,6 +83,8 @@ def _image_member_format(image_id, tenant_id, can_share):
         'image_id': image_id,
         'member': tenant_id,
         'can_share': can_share,
+        'created_at': timeutils.utcnow(),
+        'updated_at': timeutils.utcnow(),
     }
 
 

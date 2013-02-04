@@ -57,6 +57,27 @@ def _db_fixture(id, **kwargs):
     return obj
 
 
+def _db_image_member_fixture(image_id, member_id, **kwargs):
+    obj = {
+        'image_id': image_id,
+        'member': member_id,
+    }
+    obj.update(kwargs)
+    return obj
+
+
+def _domain_image_fixture(**image_dict):
+    return glance.domain.Image(**image_dict)
+
+
+def _domain_membership_fixture(**kwargs):
+    properties = {
+        'image_id': image_id,
+        'member_id': member_id,
+    }
+    properties.update(kwargs)
+    return glance.domain.ImageMembership(**properties)
+
 class TestImageRepo(test_utils.BaseTestCase):
 
     def setUp(self):
@@ -67,6 +88,7 @@ class TestImageRepo(test_utils.BaseTestCase):
         self.image_repo = glance.db.ImageRepo(self.context, self.db)
         self.image_factory = glance.domain.ImageFactory()
         self._create_images()
+        self._create_image_members()
         super(TestImageRepo, self).setUp()
 
     def _create_images(self):
@@ -83,6 +105,15 @@ class TestImageRepo(test_utils.BaseTestCase):
         [self.db.image_create(None, image) for image in self.images]
 
         self.db.image_tag_set_all(None, UUID1, ['ping', 'pong'])
+
+    def _create_image_members(self):
+        self.image_members = [
+            _db_image_member_fixture(UUID1, TENANT2),
+            _db_image_member_fixture(UUID1, TENANT3),
+            _db_image_member_fixture(UUID4, TENANT3),
+        ]
+        [self.db.image_member_create(None, image_member)
+            for image_member in self.image_members]
 
     def test_get(self):
         image = self.image_repo.get(UUID1)
@@ -174,3 +205,131 @@ class TestImageRepo(test_utils.BaseTestCase):
         self.image_repo.remove(image)
         self.assertTrue(image.updated_at > previous_update_time)
         self.assertRaises(exception.NotFound, self.image_repo.get, UUID1)
+
+
+class TestImageMemberRepo(test_utils.BaseTestCase):
+
+    def setUp(self):
+        self.db = unit_test_utils.FakeDB()
+        self.db.reset()
+        self.context = glance.context.RequestContext(user=USER1, tenant=TENANT1)
+        self.image_member_factory = glance.domain.ImageMembershipFactory()
+        self._create_images()
+        self._create_image_members()
+        self.image_repo = glance.db.ImageRepo(self.context, self.db)
+        super(TestImageMemberRepo, self).setUp()
+
+    def _create_images(self):
+        self.images = [
+            _db_fixture(UUID1, owner=TENANT1, name='1', size=256,
+                        is_public=True, status='active'),
+            _db_fixture(UUID2, owner=TENANT1, name='2',
+                        size=512, is_public=False),
+            _db_fixture(UUID3, owner=TENANT3, name='3',
+                        size=1024, is_public=True),
+            _db_fixture(UUID4, owner=TENANT4, name='4', size=2048),
+        ]
+        [self.db.image_create(None, image) for image in self.images]
+
+        self.db.image_tag_set_all(None, UUID1, ['ping', 'pong'])
+
+    def _create_image_members(self):
+        self.image_members = [
+            _db_image_member_fixture(UUID1, TENANT2),
+            _db_image_member_fixture(UUID1, TENANT3),
+            _db_image_member_fixture(UUID2, TENANT2),
+            _db_image_member_fixture(UUID4, TENANT3),
+        ]
+        [self.db.image_member_create(None, image_member)
+            for image_member in self.image_members]
+
+    def test_list_images(self):
+        self.tenant = glance.domain.Tenant(TENANT2)
+        self.image_member_repo = glance.db.ImageMembershipRepo(self.context,
+                                            self.db, tenant=self.tenant)
+        images = self.image_member_repo.list_images(self.image_repo)
+        image_ids = set([i.image_id for i in images])
+        self.assertEqual(set([UUID1, UUID2]), image_ids)
+
+    def test_list_images_no_images(self):
+        self.tenant = glance.domain.Tenant(TENANT1)
+        self.image_member_repo = glance.db.ImageMembershipRepo(self.context,
+                                            self.db, tenant=self.tenant)
+        images = self.image_member_repo.list_images(self.image_repo)
+        image_ids = set([i.image_id for i in images])
+        self.assertEqual(set([]), image_ids)
+
+    def test_list_images_private_images(self):
+        self.tenant = glance.domain.Tenant(TENANT4)
+        self.image_member_repo = glance.db.ImageMembershipRepo(self.context,
+                                            self.db, tenant=self.tenant)
+        images = self.image_member_repo.list_images(self.image_repo)
+        image_ids = set([i.image_id for i in images])
+        self.assertEqual(set([]), image_ids)
+
+    def test_list_images_specific_image(self):
+        self.tenant = glance.domain.Tenant(TENANT2)
+        self.image_member_repo = glance.db.ImageMembershipRepo(self.context,
+                                            self.db, tenant=self.tenant)
+        images = self.image_member_repo.list_images(self.image_repo,
+                                                    image_id=UUID1,
+                                                    member_id=TENANT2)
+        image_ids = set([i.image_id for i in images])
+        self.assertEqual(set([UUID1]), image_ids)
+
+    def test_list_members(self):
+        self.image = self.image_repo.get(UUID1)
+        self.image_member_repo= glance.db.ImageMembershipRepo(self.context,
+                                            self.db, image=self.image)
+        image_members = self.image_member_repo.list_members()
+        image_member_ids = set([i.member_id for i in image_members])
+        self.assertEqual(set([TENANT2, TENANT3]), image_member_ids)
+
+    def test_list_members_specific_member(self):
+        self.image = self.image_repo.get(UUID1)
+        self.image_member_repo= glance.db.ImageMembershipRepo(self.context,
+                                            self.db, image=self.image)
+        image_members = self.image_member_repo.list_members(member_id=TENANT2)
+        image_member_ids = set([i.member_id for i in image_members])
+        self.assertEqual(set([TENANT2]), image_member_ids)
+
+    def test_list_members_no_members(self):
+        self.image = self.image_repo.get(UUID3)
+        self.image_member_repo = glance.db.ImageMembershipRepo(
+                                        self.context, self.db,
+                                        image=self.image)
+        image_members = self.image_member_repo.list_members()
+        image_member_ids = set([i.member_id for i in image_members])
+        self.assertEqual(set([]), image_member_ids)
+
+    def test_add_image_member(self):
+        self.image = self.image_repo.get(UUID1)
+        self.image_member_repo= glance.db.ImageMembershipRepo(self.context,
+                                            self.db, image=self.image)
+        image_member = self.image_member_factory.new_image_membership(UUID1,
+                                                                  TENANT4)
+        self.assertTrue(image_member.id is None)
+        retreived_image_member = self.image_member_repo.add(image_member)
+        self.assertEqual(retreived_image_member.id, image_member.id)
+        self.assertEqual(retreived_image_member.image_id,
+                         image_member.image_id)
+        self.assertEqual(retreived_image_member.member_id,
+                         image_member.member_id)
+
+    def test_remove_image_member(self):
+        self.image = self.image_repo.get(UUID1)
+        self.image_member_repo= glance.db.ImageMembershipRepo(self.context,
+                                            self.db, image=self.image)
+        image_member = self.image_member_repo.list_members(member_id=TENANT2)
+        self.image_member_repo.remove(image_member[0])
+        returned_member = self.image_member_repo.list_members(member_id=TENANT2)
+        self.assertEqual(returned_member, [])
+
+    def test_remove_image_member_does_not_exist(self):
+        self.image = self.image_repo.get(UUID2)
+        self.image_member_repo= glance.db.ImageMembershipRepo(self.context,
+                                            self.db, image=self.image)
+        fake_member = glance.domain.ImageMembershipFactory()\
+                                   .new_image_membership(UUID2, TENANT4)
+        self.assertRaises(exception.NotFound, self.image_member_repo.remove,
+                          fake_member)

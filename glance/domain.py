@@ -14,6 +14,7 @@
 #    under the License.
 
 from glance.common import exception
+import glance.db
 from glance.openstack.common import timeutils
 from glance.openstack.common import uuidutils
 
@@ -171,3 +172,63 @@ class ImageProxy(object):
 
     def delete(self):
         self.base.delete()
+
+
+class ImageMembership(object):
+
+    def __init__(self, image_id, member_id, created_at, updated_at, id=None):
+        self.id = id
+        self.image_id = image_id
+        self.member_id = member_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+
+
+class ImageMembershipFactory(object):
+
+    def new_image_membership(self, image_id, member_id):
+        created_at = timeutils.utcnow()
+        updated_at = created_at
+
+        return ImageMembership(image_id=image_id, member_id=member_id,
+                           created_at=created_at, updated_at=updated_at)
+
+
+class ImageMembershipRepoProxy(object):
+    def __init__(self, base):
+        self.base = base
+
+    def get(self, image_id):
+        return self.base.get(image_id)
+
+    def list_members(self, *args, **kwargs):
+        return self.base.list(*args, **kwargs)
+
+    def list_images(self, *args, **kwargs):
+        return self.base.list(*args, **kwargs)
+
+    def add(self, image_member):
+        return self.base.add(image_member)
+
+    def remove(self, image_member):
+        return self.base.remove(image_member)
+
+
+class Tenant(object):
+    def __init__(self, tenant_id):
+        self.tenant_id = tenant_id
+
+    @property
+    def tenant_id(self):
+        return self._tenant_id
+
+    @tenant_id.setter
+    def tenant_id(self, value):
+        self._tenant_id = value
+
+
+class TenantProxy(object):
+    def __init__(self, base):
+        self.base = base
+
+    tenant_id = _proxy('base', 'tenant_id')

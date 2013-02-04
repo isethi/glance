@@ -737,3 +737,152 @@ class TestImageDirectURLVisibility(functional.FunctionalTest):
         self.assertFalse('direct_url' in image)
 
         self.stop_servers()
+
+
+class TestImageMembers(functional.FunctionalTest):
+
+    def setUp(self):
+        super(TestImageMembers, self).setUp()
+        self.cleanup()
+        self.api_server.deployment_flavor = 'noauth'
+        self.start_servers(**self.__dict__.copy())
+
+    def _url(self, path):
+        return 'http://127.0.0.1:%d%s' % (self.api_port, path)
+
+    def _headers(self, custom_headers=None):
+        base_headers = {
+            'X-Identity-Status': 'Confirmed',
+            'X-Auth-Token': '932c5c84-02ac-4fe5-a9ba-620af0e2bb96',
+            'X-User-Id': 'f9a41d13-0c13-47e9-bee2-ce4e8bfe958e',
+            'X-Tenant-Id': TENANT1,
+            'X-Roles': 'member',
+        }
+        base_headers.update(custom_headers or {})
+        return base_headers
+
+    def test_image_member_lifecycle(self):
+        # Image list should be empty
+        path = self._url('/v2/images')
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        images = json.loads(response.text)['images']
+        self.assertEqual(0, len(images))
+
+        # Create 3 images
+        images = []
+        fixtures = [
+            {'name': 'image-1', 'visibility': 'public'},
+            {'name': 'image-2', 'visibility': 'public'},
+            {'name': 'image-3', 'visibility': 'private'},
+        ]
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json'})
+        for fixture in fixtures:
+            data = json.dumps(fixture)
+            response = requests.post(path, headers=headers, data=data)
+            self.assertEqual(201, response.status_code)
+            images.append(json.loads(response.text))
+
+        # Image list should contain 3 images
+        path = self._url('/v2/images')
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        body = json.loads(response.text)
+        self.assertEqual(3, len(body['images']))
+
+        # Add Image member
+        path = self._url('/v2/images/%s/members/%s' %(images[0]['id'], TENANT1))
+        response = requests.put(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        image_member = json.loads(response.text)
+        self.assertEqual(images[0]['id'], image_member['image_id'])
+        self.assertEqual(TENANT1, image_member['member_id'])
+        self.assertTrue('created_at' in image_member)
+        self.assertTrue('updated_at' in image_member)
+
+        # Add Image member
+        path = self._url('/v2/images/%s/members/%s' %(images[0]['id'], TENANT2))
+        response = requests.put(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        image_member = json.loads(response.text)
+        self.assertEqual(images[0]['id'], image_member['image_id'])
+        self.assertEqual(TENANT2, image_member['member_id'])
+        self.assertTrue('created_at' in image_member)
+        self.assertTrue('updated_at' in image_member)
+
+        # Add Image member
+        path = self._url('/v2/images/%s/members/%s' %(images[1]['id'], TENANT2))
+        response = requests.put(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        image_member = json.loads(response.text)
+        self.assertEqual(images[1]['id'], image_member['image_id'])
+        self.assertEqual(TENANT2, image_member['member_id'])
+        self.assertTrue('created_at' in image_member)
+        self.assertTrue('updated_at' in image_member)
+
+        # Add Image member
+        path = self._url('/v2/images/%s/members/%s' %(images[2]['id'], TENANT2))
+        response = requests.put(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        image_member = json.loads(response.text)
+        self.assertEqual(images[2]['id'], image_member['image_id'])
+        self.assertEqual(TENANT2, image_member['member_id'])
+        self.assertTrue('created_at' in image_member)
+        self.assertTrue('updated_at' in image_member)
+
+        # Image members list should contain 2 members
+        path = self._url('/v2/images/%s/members' %images[0]['id'])
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        body = json.loads(response.text)
+        self.assertEqual(2, len(body['members']))
+
+        # Image members not found for private image
+        headers = self._headers({
+            'X-Tenant-Id': TENANT3,
+        })
+        path = self._url('/v2/images/%s/members' %images[2]['id'])
+        response = requests.get(path, headers=headers)
+        self.assertEqual(404, response.status_code)
+
+        # Get images for TENANT1 (one public image)
+        path = self._url('/v2/shared-images/%s' %(TENANT1))
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        shared_images = json.loads(response.text)['shared_images']
+        self.assertEquals(len(shared_images), 1)
+        self.assertEqual(shared_images[0]['image_id'], images[0]['id'])
+
+        # Get images for TENANT2 (2 public, 1 private image)
+        headers = self._headers({
+            'X-Tenant-Id': TENANT3,
+        })
+        path = self._url('/v2/shared-images/%s' %(TENANT2))
+        response = requests.get(path, headers=headers)
+        self.assertEqual(200, response.status_code)
+        shared_images = json.loads(response.text)['shared_images']
+        self.assertEquals(len(shared_images), 2)
+        self.assertEqual(shared_images[0]['image_id'], images[0]['id'])
+        self.assertEqual(shared_images[1]['image_id'], images[1]['id'])
+
+        # Delete Image member
+        path = self._url('/v2/images/%s/members/%s' %(images[0]['id'], TENANT1))
+        response = requests.delete(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+
+        # Now the image has only one image member
+        path = self._url('/v2/images/%s/members' %images[0]['id'])
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        body = json.loads(response.text)
+        self.assertEqual(1, len(body['members']))
+
+        # Check deleted member does not have image
+        path = self._url('/v2/shared-images/%s' %(TENANT1))
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        shared_images = json.loads(response.text)['shared_images']
+        self.assertEquals(len(shared_images), 0)
+
+        self.stop_servers()
