@@ -66,7 +66,8 @@ class ImagesController(object):
         return image
 
     def index(self, req, marker=None, limit=None, sort_key='created_at',
-              sort_dir='desc', filters=None):
+              sort_dir='desc', filters=None, member_status='accepted',
+              owned_by=None):
         result = {}
         if filters is None:
             filters = {}
@@ -80,7 +81,9 @@ class ImagesController(object):
         try:
             images = image_repo.list(marker=marker, limit=limit,
                                      sort_key=sort_key, sort_dir=sort_dir,
-                                     filters=filters)
+                                     filters=filters,
+                                     member_status=member_status,
+                                     owned_by=owned_by)
             if len(images) != 0 and len(images) == limit:
                 result['next_marker'] = images[-1].image_id
         except (exception.NotFound, exception.InvalidSortKey,
@@ -332,6 +335,13 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
 
         return sort_dir
 
+    def _validate_member_status(self, member_status):
+        if member_status not in ['pending', 'accepted', 'rejected', 'all']:
+            msg = _('Invalid status: %s' % member_status)
+            raise webob.exc.HTTPBadRequest(explanation=msg)
+
+        return member_status
+
     def _get_filters(self, filters):
         visibility = filters.pop('visibility', None)
         if visibility:
@@ -348,10 +358,13 @@ class RequestDeserializer(wsgi.JSONRequestDeserializer):
         limit = params.pop('limit', None)
         marker = params.pop('marker', None)
         sort_dir = params.pop('sort_dir', 'desc')
+        member_status = params.pop('member_status', 'accepted')
         query_params = {
             'sort_key': params.pop('sort_key', 'created_at'),
             'sort_dir': self._validate_sort_dir(sort_dir),
             'filters': self._get_filters(params),
+            'member_status': self._validate_member_status(member_status),
+            'owned_by': params.pop('owned_by', None)
         }
 
         if marker is not None:
