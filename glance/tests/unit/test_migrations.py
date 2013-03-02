@@ -41,6 +41,7 @@ import glance.db.sqlalchemy.migrate_repo
 from glance.db.sqlalchemy.migration import versioning_api as migration_api
 from glance.db.sqlalchemy import models
 from glance.openstack.common import log as logging
+from glance.openstack.common import timeutils
 from glance.openstack.common import uuidutils
 from glance.tests import utils
 
@@ -61,6 +62,8 @@ def _get_connect_string(backend,
     """
     if backend == "mysql":
         backend = "mysql+mysqldb"
+    elif backend == "postgres":
+        backend = "postgresql+psycopg2"
 
     return ("%(backend)s://%(user)s:%(passwd)s@localhost/%(database)s"
             % locals())
@@ -265,6 +268,29 @@ class TestMigrations(utils.BaseTestCase):
         self.assertEqual(count, 0, "%d non InnoDB tables created" % count)
         connection.close()
 
+    def test_postgresql_connect_fail(self):
+        """
+        Test that we can trigger a postgres connection failure and we fail
+        gracefully to ensure we don't break people without postgres
+        """
+        if _is_backend_avail('postgresql', user="openstack_cifail"):
+            self.fail("Shouldn't have connected")
+
+    def test_postgresql_opportunistically(self):
+        # Test postgresql database migration walk
+        if not _is_backend_avail('postgres'):
+            self.skipTest("postgresql not available")
+        # add this to the global lists to make reset work with it, it's removed
+        # automatically in tearDown so no need to clean it up here.
+        connect_string = _get_connect_string("postgres")
+        engine = sqlalchemy.create_engine(connect_string)
+        self.engines["postgresqlcitest"] = engine
+        self.test_databases["postgresqlcitest"] = connect_string
+
+        # build a fully populated postgresql database with all the tables
+        self._reset_databases()
+        self._walk_versions(engine, False, False)
+
     def _walk_versions(self, engine=None, snake_walk=False, downgrade=True,
                        initial_version=None):
         # Determine latest version script from the repo, then
@@ -399,6 +425,51 @@ class TestMigrations(utils.BaseTestCase):
                         "images table columns reported by metadata: %s\n"
                         % images.c.keys())
         images_prop = get_table(engine, 'image_properties')
+
+    def _prerun_004(self, engine):
+        """Insert checksum data sample to check if migration goes fine with
+        data"""
+        now = timeutils.utcnow()
+        images = get_table(engine, 'images')
+        data = [
+            {
+                'deleted': False, 'created_at': now, 'updated_at': now,
+                'type': 'kernel', 'status': 'active', 'is_public': True,
+            }
+        ]
+        engine.execute(images.insert(), data)
+        return data
+
+    def _check_004(self, engine, data):
+        """Assure that checksum data is present on table"""
+        images = get_table(engine, 'images')
+        self.assertIn('checksum', images.c)
+        self.assertEquals(images.c['checksum'].type.length, 32)
+
+    def _prerun_005(self, engine):
+        now = timeutils.utcnow()
+        images = get_table(engine, 'images')
+        data = [
+            {
+                'deleted': False, 'created_at': now, 'updated_at': now,
+                'type': 'kernel', 'status': 'active', 'is_public': True,
+                # Integer type signed size limit
+                'size': 2147483647
+            }
+        ]
+        engine.execute(images.insert(), data)
+        return data
+
+    def _check_005(self, engine, data):
+
+        images = get_table(engine, 'images')
+        select = images.select().execute()
+
+        sizes = [row['size'] for row in select if row['size'] is not None]
+        migrated_data_sizes = [element['size'] for element in data]
+
+        for migrated in migrated_data_sizes:
+            self.assertIn(migrated, sizes)
 
     def _prerun_015(self, engine):
         images = get_table(engine, 'images')
