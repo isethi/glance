@@ -69,7 +69,7 @@ class Controller(object):
             del filters['is_public']
         try:
             return self.db_api.image_get_all(context, filters=filters,
-                                             **params)
+                                             member_status='all', **params)
         except exception.NotFound, e:
             msg = _("Invalid marker. Image could not be found.")
             raise exc.HTTPBadRequest(explanation=msg)
@@ -95,7 +95,7 @@ class Controller(object):
             }
         """
         params = self._get_query_params(req)
-        images = self._get_images(req.context, **params)
+        images = self._get_images(req.context, member_status='all', **params)
 
         results = []
         for image in images:
