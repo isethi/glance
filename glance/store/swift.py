@@ -138,7 +138,7 @@ class StoreLocation(glance.store.location.StoreLocation):
             return '%s:%s@' % (urllib.quote(self.user), urllib.quote(self.key))
         return ''
 
-    def get_uri(self):
+    def get_uri(self, credentials_included=True):
         auth_or_store_url = self.auth_or_store_url
         if auth_or_store_url.startswith('http://'):
             auth_or_store_url = auth_or_store_url[len('http://'):]
@@ -150,8 +150,20 @@ class StoreLocation(glance.store.location.StoreLocation):
         container = self.container.strip('/')
         obj = self.obj.strip('/')
 
+        if not credentials_included:
+            credstring = 'hidden_user:hidden_key@'
         return '%s://%s%s/%s/%s' % (self.scheme, credstring, auth_or_store_url,
                                     container, obj)
+
+    def _option_get(self, param):
+        result = getattr(CONF, param)
+        if not result:
+            reason = (_("Could not find %(param)s in configuration "
+                        "options.") % locals())
+            LOG.error(reason)
+            raise exception.BadStoreConfiguration(store_name="swift",
+                                                  reason=reason)
+        return result
 
     def parse_uri(self, uri):
         """
@@ -204,6 +216,10 @@ class StoreLocation(glance.store.location.StoreLocation):
             user, key = cred_parts
             self.user = urllib.unquote(user)
             self.key = urllib.unquote(key)
+            if self.user == 'hidden_user':
+                self.user = self._option_get('swift_store_user')
+            if self.key == 'hidden_key':
+                self.key = self._option_get('swift_store_key')
         else:
             self.user = None
             self.key = None
@@ -425,7 +441,8 @@ class BaseStore(glance.store.base.Store):
             # the location attribute from GET /images/<ID> and
             # GET /images/details
 
-            return (location.get_uri(), image_size, obj_etag)
+            return (location.get_uri(credentials_included=False), image_size,
+                    obj_etag)
         except swiftclient.ClientException as e:
             if e.http_status == httplib.CONFLICT:
                 raise exception.Duplicate(_("Swift already has an image at "

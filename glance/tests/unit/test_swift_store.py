@@ -280,9 +280,8 @@ class SwiftTests(object):
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
         expected_image_id = uuidutils.generate_uuid()
-        loc = 'swift+https://%s:key@localhost:8080/glance/%s'
-        expected_location = loc % (self.swift_store_user,
-                                   expected_image_id)
+        loc = 'swift+https://hidden_user:hidden_key@localhost:8080/glance/%s'
+        expected_location = loc % (expected_image_id)
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         global SWIFT_PUT_OBJECT_CALLS
@@ -312,29 +311,31 @@ class SwiftTests(object):
         a variety of different auth_address values
         """
         variations = {
-            'http://localhost:80': 'swift+http://%s:key@localhost:80'
-                                   '/glance/%s',
-            'http://localhost': 'swift+http://%s:key@localhost/glance/%s',
-            'http://localhost/v1': 'swift+http://%s:key@localhost'
-                                   '/v1/glance/%s',
-            'http://localhost/v1/': 'swift+http://%s:key@localhost'
-                                    '/v1/glance/%s',
-            'https://localhost': 'swift+https://%s:key@localhost/glance/%s',
-            'https://localhost:8080': 'swift+https://%s:key@localhost:8080'
-                                      '/glance/%s',
-            'https://localhost/v1': 'swift+https://%s:key@localhost'
-                                    '/v1/glance/%s',
-            'https://localhost/v1/': 'swift+https://%s:key@localhost'
-                                     '/v1/glance/%s',
-            'localhost': 'swift+https://%s:key@localhost/glance/%s',
-            'localhost:8080/v1': 'swift+https://%s:key@localhost:8080'
-                                 '/v1/glance/%s',
+            'http://localhost:80': 'swift+http://hidden_user:hidden_key@'
+                                   'localhost:80/glance/%s',
+            'http://localhost': 'swift+http://hidden_user:hidden_key@'
+                                'localhost/glance/%s',
+            'http://localhost/v1': 'swift+http://hidden_user:hidden_key@'
+                                   'localhost/v1/glance/%s',
+            'http://localhost/v1/': 'swift+http://hidden_user:hidden_key@'
+                                    'localhost/v1/glance/%s',
+            'https://localhost': 'swift+https://hidden_user:hidden_key@'
+                                 'localhost/glance/%s',
+            'https://localhost:8080': 'swift+https://hidden_user:hidden_key@'
+                                      'localhost:8080/glance/%s',
+            'https://localhost/v1': 'swift+https://hidden_user:hidden_key@'
+                                    'localhost/v1/glance/%s',
+            'https://localhost/v1/': 'swift+https://hidden_user:hidden_key@'
+                                     'localhost/v1/glance/%s',
+            'localhost': 'swift+https://hidden_user:hidden_key@localhost/'
+                         'glance/%s',
+            'localhost:8080/v1': 'swift+https://hidden_user:hidden_key@'
+                                 'localhost:8080/v1/glance/%s',
         }
 
         for variation, expected_location in variations.items():
             image_id = uuidutils.generate_uuid()
-            expected_location = expected_location % (
-                self.swift_store_user, image_id)
+            expected_location = expected_location % image_id
             expected_swift_size = FIVE_KB
             expected_swift_contents = "*" * expected_swift_size
             expected_checksum = \
@@ -399,9 +400,8 @@ class SwiftTests(object):
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
         expected_image_id = uuidutils.generate_uuid()
-        loc = 'swift+https://%s:key@localhost:8080/noexist/%s'
-        expected_location = loc % (self.swift_store_user,
-                                   expected_image_id)
+        loc = 'swift+https://hidden_user:hidden_key@localhost:8080/noexist/%s'
+        expected_location = loc % (expected_image_id)
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         global SWIFT_PUT_OBJECT_CALLS
@@ -438,9 +438,8 @@ class SwiftTests(object):
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
         expected_image_id = uuidutils.generate_uuid()
-        loc = 'swift+https://%s:key@localhost:8080/glance/%s'
-        expected_location = loc % (self.swift_store_user,
-                                   expected_image_id)
+        loc = 'swift+https://hidden_user:hidden_key@localhost:8080/glance/%s'
+        expected_location = loc % (expected_image_id)
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         global SWIFT_PUT_OBJECT_CALLS
@@ -491,9 +490,8 @@ class SwiftTests(object):
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
         expected_image_id = uuidutils.generate_uuid()
-        loc = 'swift+https://%s:key@localhost:8080/glance/%s'
-        expected_location = loc % (self.swift_store_user,
-                                   expected_image_id)
+        loc = 'swift+https://hidden_user:hidden_key@localhost:8080/glance/%s'
+        expected_location = loc % (expected_image_id)
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         global SWIFT_PUT_OBJECT_CALLS
