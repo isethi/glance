@@ -46,7 +46,7 @@ def get_fake_request(path='', method='POST', is_admin=False, user=USER1,
     kwargs = {
         'user': user,
         'tenant': tenant,
-        'roles': [],
+        'roles': ['observer'],
         'is_admin': is_admin,
     }
 

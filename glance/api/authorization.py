@@ -15,6 +15,7 @@
 
 from glance.common import exception
 import glance.domain.proxy
+from glance.domain import property_utils
 
 
 def is_image_mutable(context, image):
@@ -299,8 +300,30 @@ class ImageProxy(glance.domain.proxy.Image):
     def __init__(self, image, context):
         self.image = image
         self.context = context
-        super(ImageProxy, self).__init__(image)
+        roles = self.context.roles
+        self.image.extra_properties = ExtraPropertiesProxy(roles,
+                                        self.image.extra_properties)
+        super(ImageProxy, self).__init__(self.image)
 
+#    @property
+#    def extra_properties(self):
+#        protected_props = {}
+#        for prop_key in self.image.extra_properties.keys():
+#            if self.protect_properties.check_property_rules(prop_key, 'R'):
+#                protected_props[prop_key] = self.image.extra_properties.\
+#                                                       get(prop_key)
+#
+#        return protected_props
+#
+#    @extra_properties.setter
+#    def extra_properties(self, extra_properties):
+#        protected_props = {}
+#        for prop_key in extra_properties.keys():
+#            if self.protect_properties.check_property_rules(prop_key, 'U'):
+#                protected_props[prop_key] = extra_properties.get(prop_key)
+#
+#        self.image.extra_properties = protected_props
+#
     def get_member_repo(self, **kwargs):
         if self.image.visibility == 'public':
             message = _("Public images do not have members.")
@@ -308,3 +331,28 @@ class ImageProxy(glance.domain.proxy.Image):
         else:
             member_repo = self.image.get_member_repo(**kwargs)
             return ImageMemberRepoProxy(member_repo, self, self.context)
+
+
+class ExtraPropertiesProxy(glance.domain.ExtraProperties):
+
+    def __init__(self, roles, value):
+        self.roles = roles
+        self.protect_properties = property_utils.PropertyRules(self.roles)
+        super(ExtraPropertiesProxy, self).__init__(value)
+
+    def __getitem__(self, key):
+        if self.protect_properties.check_property_rules(key, 'R'):
+            return dict.__getitem__(self, key)
+
+    def __setitem__(self, key, value):
+        try:
+            if self.__getitem__(key):
+                if self.protect_properties.check_property_rules(key, 'U'):
+                    return dict.__setitem__(self, key, value)
+        except KeyError:
+            if self.protect_properties.check_property_rules(key, 'C'):
+                return dict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        if self.protect_properties.check_property_rules(key, 'D'):
+            return dict.__delitem__(self, key)
