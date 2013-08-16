@@ -820,6 +820,110 @@ class TestImagesController(test_utils.BaseTestCase):
         self.assertEqual(output_log['event_type'], 'image.update')
         self.assertEqual(output_log['payload']['id'], UUID1)
 
+    def test_prop_protection_with_create_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'add', 'path': ['foo'], 'value': 'bar'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties['foo'], 'bar')
+
+    def test_prop_protection_with_create_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={},
+                                               tags=[])
+        roles = ['fake_member']
+        another_request = unit_test_utils.get_fake_request(roles)
+        changes = [
+            {'op': 'add', 'path': ['foo'], 'value': 'bar'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties, {})
+
+    def test_prop_protection_with_show_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        roles = ['member']
+        another_request = unit_test_utils.get_fake_request(roles)
+        output = self.controller.show(another_request, created_image.image_id)
+        self.assertEqual(output.extra_properties['foo'], 'bar')
+
+    def test_prop_protection_with_show_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['member'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        fake_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        output = self.controller.show(fake_request, created_image.image_id)
+        self.assertRaises(KeyError, output.extra_properties.__getitem__, 'foo')
+
+    def test_prop_protection_with_update_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'replace', 'path': ['foo'], 'value': 'baz'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties['foo'], 'baz')
+
+    def test_prop_protection_with_update_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        changes = [
+            {'op': 'replace', 'path': ['foo'], 'value': 'baz'},
+        ]
+        self.assertRaises(webob.exc.HTTPConflict, self.controller.update,
+                          request, UUID1, changes)
+
+    def test_prop_protection_with_delete_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'remove', 'path': ['foo']}
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertRaises(KeyError, output.extra_properties.__getitem__, 'foo')
+
+    def test_prop_protection_with_delete_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        changes = [
+            {'op': 'remove', 'path': ['foo']}
+        ]
+        self.assertRaises(webob.exc.HTTPConflict, self.controller.update,
+                          request, UUID1, changes)
+
     def test_delete(self):
         request = unit_test_utils.get_fake_request()
         self.assertTrue(filter(lambda k: UUID1 in k, self.store.data))

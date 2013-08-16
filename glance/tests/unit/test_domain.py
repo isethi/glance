@@ -43,7 +43,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {})
+        self.assertEqual(dict(image.extra_properties), {})
         self.assertEqual(image.tags, set([]))
 
     def test_new_image(self):
@@ -63,7 +63,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {})
+        self.assertEqual(dict(image.extra_properties), {})
         self.assertEqual(image.tags, set([]))
 
     def test_new_image_with_extra_properties_and_tags(self):
@@ -86,7 +86,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {'foo': 'bar'})
+        self.assertEqual(dict(image.extra_properties), {'foo': 'bar'})
         self.assertEqual(image.tags, set(['one', 'two']))
 
     def test_new_image_read_only_property(self):
@@ -191,3 +191,72 @@ class TestImageMemberFactory(test_utils.BaseTestCase):
         self.assertEqual(image_member.created_at, image_member.updated_at)
         self.assertEqual(image_member.status, 'pending')
         self.assertTrue(image_member.member_id is not None)
+
+class TestExtraProperties(test_utils.BaseTestCase):
+
+    def test_getitem(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        self.assertEqual(extra_properties['foo'], 'bar')
+        self.assertEqual(extra_properties['snitch'], 'golden')
+
+    def test_getitem_with_no_items(self):
+        extra_properties = domain.ExtraProperties()
+        self.assertRaises(KeyError, extra_properties.__getitem__, 'foo')
+
+    def test_setitem(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        extra_properties['foo'] = 'baz'
+        self.assertEqual(extra_properties['foo'], 'baz')
+
+    def test_delitem(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        del extra_properties['foo']
+        self.assertRaises(KeyError, extra_properties.__getitem__, 'foo')
+        self.assertEqual(extra_properties['snitch'], 'golden')
+
+    def test_len_with_zero_items(self):
+        extra_properties = domain.ExtraProperties()
+        self.assertEqual(len(extra_properties), 0)
+
+    def test_len_with_non_zero_items(self):
+        extra_properties = domain.ExtraProperties()
+        extra_properties['foo'] = 'bar'
+        extra_properties['snitch'] = 'golden'
+        self.assertEqual(len(extra_properties), 2)
+
+    def test_eq_with_a_dict(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        ref_extra_properties = {'foo':'bar','snitch':'golden'}
+        self.assertEqual(extra_properties, ref_extra_properties)
+
+    def test_eq_with_an_object_of_ExtraProperties(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        ref_extra_properties = domain.ExtraProperties()
+        ref_extra_properties['snitch'] = 'golden'
+        ref_extra_properties['foo'] = 'bar'
+        self.assertEqual(extra_properties, ref_extra_properties)
+
+    def test_eq_with_uneqal_dict(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        ref_extra_properties = {'boo':'far','gnitch':'solden'}
+        self.assertFalse(extra_properties.__eq__(ref_extra_properties))
+
+    def test_eq_with_unequal_ExtraProperties_object(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        ref_extra_properties = domain.ExtraProperties()
+        ref_extra_properties['gnitch'] = 'solden'
+        ref_extra_properties['boo'] = 'far'
+        self.assertFalse(extra_properties.__eq__(ref_extra_properties))
+
+    def test_eq_with_incompatible_object(self):
+        a_dict = {'foo':'bar', 'snitch':'golden'}
+        extra_properties = domain.ExtraProperties(a_dict)
+        random_list = ['foo', 'bar']
+        self.assertFalse(extra_properties.__eq__(random_list))

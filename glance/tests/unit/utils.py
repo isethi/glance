@@ -39,14 +39,14 @@ BASE_URI = 'swift+http://storeurl.com/container'
 
 
 def get_fake_request(path='', method='POST', is_admin=False, user=USER1,
-                     tenant=TENANT1):
+                     tenant=TENANT1, roles=['member']):
     req = wsgi.Request.blank(path)
     req.method = method
 
     kwargs = {
         'user': user,
         'tenant': tenant,
-        'roles': [],
+        'roles': roles,
         'is_admin': is_admin,
     }
 

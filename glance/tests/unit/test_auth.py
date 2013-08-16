@@ -857,3 +857,243 @@ class TestImageRepoProxy(utils.BaseTestCase):
                           setattr, images[1], 'name', 'Wally')
         self.assertRaises(exception.Forbidden,
                           setattr, images[2], 'name', 'Calvin')
+
+
+class TestProtectedImageRepoProxy(utils.BaseTestCase):
+
+    class ImageRepoStub(object):
+        def __init__(self, fixtures):
+            self.fixtures = fixtures
+
+        def get(self, image_id):
+            for f in self.fixtures:
+                if f.image_id == image_id:
+                    return f
+            else:
+                raise ValueError(image_id)
+
+        def list(self, *args, **kwargs):
+            return self.fixtures
+
+        def add(self, image):
+            self.fixtures.append(image)
+
+    def setUp(self):
+        super(TestProtectedImageRepoProxy, self).setUp()
+        self.image_factory = glance.domain.ImageFactory()
+        extra_props = {'spl_create_prop': 'c',
+                       'spl_read_prop': 'r',
+                       'spl_update_prop': 'u',
+                       'spl_delete_prop': 'd',
+                       'forbidden': 'prop'}
+        self.fixtures = [
+            self.image_factory.new_image(image_id='1', owner=TENANT1,
+                                    extra_properties=extra_props),
+            self.image_factory.new_image(owner=TENANT2, visibility='public'),
+            self.image_factory.new_image(image_id='3', owner=TENANT2,
+                                    extra_properties={'spl_read_prop': 'r',
+                                                      'forbidden': 'prop'}),
+        ]
+        self.context = glance.context.RequestContext(roles=['spl_role'])
+        image_repo = self.ImageRepoStub(self.fixtures)
+        self.image_repo = authorization.ProtectedImageRepoProxy(image_repo,
+                                                       self.context)
+
+    def test_get_image(self):
+        image_id = '1'
+        result_image = self.image_repo.get(image_id)
+        result_extra_props = result_image.extra_properties
+        self.assertEqual(result_extra_props['spl_create_prop'], 'c')
+        self.assertEqual(result_extra_props['spl_read_prop'], 'r')
+        self.assertEqual(result_extra_props['spl_update_prop'], 'u')
+        self.assertEqual(result_extra_props['spl_delete_prop'], 'd')
+        self.assertFalse('forbidden' in result_extra_props.keys())
+
+    def test_list_image(self):
+        result_images = self.image_repo.list()
+        self.assertEquals(len(result_images), 3)
+        result_extra_props = result_images[0].extra_properties
+        self.assertEqual(result_extra_props['spl_create_prop'], 'c')
+        self.assertEqual(result_extra_props['spl_read_prop'], 'r')
+        self.assertEqual(result_extra_props['spl_update_prop'], 'u')
+        self.assertEqual(result_extra_props['spl_delete_prop'], 'd')
+        self.assertFalse('forbidden' in result_extra_props.keys())
+
+        result_extra_props = result_images[1].extra_properties
+        self.assertEqual(result_extra_props, {})
+
+        result_extra_props = result_images[2].extra_properties
+        self.assertEqual(result_extra_props['spl_read_prop'], 'r')
+        self.assertFalse('forbidden' in result_extra_props.keys())
+
+    def test_add_image(self):
+        extra_props = {'foo': 'bar', 'spl_create_prop': 'c'}
+        image = self.image_factory.new_image(image_id='4',
+                                        extra_properties=extra_props)
+        self.image_repo.add(image)
+        result_image = self.image_repo.get('4')
+        result_extra_props = result_image.extra_properties
+        self.assertEqual(result_extra_props['spl_create_prop'], 'c')
+        self.assertFalse('foo' in result_extra_props.keys())
+
+
+class TestProtectedImageProxy(utils.BaseTestCase):
+
+    class ImageStub(object):
+        def __init__(self, extra_prop):
+            self.extra_properties = extra_prop
+
+    def test_create_image_with_extra_prop(self):
+        context = glance.context.RequestContext(roles=['spl_role'])
+        extra_prop = {'spl_create_prop': 'create', 'random': 'prop'}
+        image = self.ImageStub(extra_prop)
+        result_image = authorization.ProtectedImageProxy(image, context,
+                                                         'create')
+        result_extra_props = result_image.extra_properties
+        self.assertEqual(result_extra_props['spl_create_prop'], 'create')
+        self.assertFalse('random' in result_extra_props.keys())
+
+    def test_read_image_with_extra_prop(self):
+        context = glance.context.RequestContext(roles=['spl_role'])
+        extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
+        image = self.ImageStub(extra_prop)
+        result_image = authorization.ProtectedImageProxy(image, context, 'read')
+        result_extra_props = result_image.extra_properties
+        self.assertEqual(result_extra_props['spl_read_prop'], 'read')
+        self.assertFalse('spl_fake_prop' in result_extra_props.keys())
+
+    def test_update_image_with_extra_prop(self):
+        context = glance.context.RequestContext(roles=['spl_role'])
+        extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
+        image = self.ImageStub(extra_prop)
+        self.assertRaises(exception.Forbidden,
+                         authorization.ProtectedImageProxy, image, context,
+                         'update')
+
+    def test_delete_image_with_extra_prop(self):
+        context = glance.context.RequestContext(roles=['spl_role'])
+        extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
+        image = self.ImageStub(extra_prop)
+        self.assertRaises(exception.Forbidden,
+                         authorization.ProtectedImageProxy, image, context,
+                         'delete')
+
+
+class TestExtraPropertiesProxy(utils.BaseTestCase):
+
+    def test_read_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        test_result = extra_prop_proxy['foo']
+        self.assertEqual(test_result, 'bar')
+
+    def test_read_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        test_result = extra_prop_proxy['foo']
+        self.assertEqual(test_result, 'bar')
+
+    def test_read_extra_property_as_unpermitted_role(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['unpermitted_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+
+    def test_update_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['foo'] = 'par'
+        self.assertEqual(extra_prop_proxy['foo'], 'par')
+
+    def test_update_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['foo'] = 'par'
+        self.assertEqual(extra_prop_proxy['foo'], 'par')
+
+    def test_update_extra_property_as_unpermitted_role_after_read(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertEqual(extra_prop_proxy['spl_read_prop'], 'bar')
+
+    def test_update_extra_property_as_unpermitted_role_after_create(self):
+        extra_properties = {'spl_read_only_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['spl_read_only_prop'] = 'par'
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__,
+                          'spl_read_only_prop')
+
+    def test_create_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['boo'] = 'doo'
+        self.assertEqual(extra_prop_proxy['boo'], 'doo')
+
+    def test_create_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['boo'] = 'doo'
+        self.assertEqual(extra_prop_proxy['boo'], 'doo')
+
+    def test_create_extra_property_as_unpermitted_role(self):
+        extra_properties = {}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'spl_read_prop')
+
+    def test_delete_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        del extra_prop_proxy['foo']
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+
+    def test_delete_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        del extra_prop_proxy['foo']
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+
+    def test_create_extra_property_as_unpermitted_role(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        del extra_prop_proxy['spl_read_prop']
+        self.assertEqual(extra_prop_proxy['spl_read_prop'], 'bar')
