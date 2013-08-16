@@ -58,6 +58,8 @@ class Gateway(object):
                 store_image_repo, context, self.policy)
         notifier_image_repo = glance.notifier.ImageRepoProxy(
                 policy_image_repo, context, self.notifier)
-        authorized_image_repo = authorization.ImageRepoProxy(
+        protected_image_repo = authorization.ProtectedImageRepoProxy(
                 notifier_image_repo, context)
+        authorized_image_repo = authorization.ImageRepoProxy(
+                protected_image_repo, context)
         return authorized_image_repo

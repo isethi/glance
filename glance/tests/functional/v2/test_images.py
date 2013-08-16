@@ -368,6 +368,102 @@ class TestImages(functional.FunctionalTest):
 
         self.stop_servers()
 
+    def test_property_protections(self):
+        # Image list should be empty
+        #path = self._url('/v2/images')
+        #response = requests.get(path, headers=self._headers())
+        #self.assertEqual(200, response.status_code)
+        #images = json.loads(response.text)['images']
+        #self.assertEqual(0, len(images))
+
+        ## Create an image for role member with extra props
+        #path = self._url('/v2/images')
+        #headers = self._headers({'content-type': 'application/json',
+        #                         'X-Roles': 'member'})
+        #data = json.dumps({'name': 'image-1', 'type': 'kernel', 'foo': 'bar',
+        #                   'disk_format': 'aki', 'container_format': 'aki',
+        #                   'owner_specified_foo': 'o_s_bar'})
+        #response = requests.post(path, headers=headers, data=data)
+        #self.assertEqual(201, response.status_code)
+
+        ## Returned image entity should have both 'foo' and 'owner_specified_foo'
+        #image = json.loads(response.text)
+        #image_id = image['id']
+        #expected_image = {
+        #    'status': 'queued',
+        #    'name': 'image-1',
+        #    'tags': [],
+        #    'visibility': 'private',
+        #    'self': '/v2/images/%s' % image_id,
+        #    'protected': False,
+        #    'file': '/v2/images/%s/file' % image_id,
+        #    'min_disk': 0,
+        #    'foo': 'bar',
+        #    'owner_specified_foo': 'o_s_bar',
+        #    'type': 'kernel',
+        #    'min_ram': 0,
+        #    'schema': '/v2/schemas/image',
+        #}
+        #for key, value in expected_image.items():
+        #    self.assertEqual(image[key], value, key)
+
+        # Create an image for role spl_role with extra props 'foo',
+        # 'spl_create_prop', 'spl_read_prop'
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json',
+                                 'X-Roles': 'spl_role'})
+        data = json.dumps({'name': 'image-1', 'foo': 'bar',
+                           'disk_format': 'aki', 'container_format': 'aki',
+                           'spl_create_prop': 'create_bar',
+                           'spl_read_prop': 'read_bar',
+                           'spl_update_prop': 'update_bar',
+                           'spl_delete_prop': 'delete_bar'})
+        response = requests.post(path, headers=headers, data=data)
+        self.assertEqual(201, response.status_code)
+
+        # Returned image entity should have only 'spl_read_foo' according to
+        # the file glance/tests/etc/property-protections.conf
+        image = json.loads(response.text)
+        image_id = image['id']
+        self.assertEqual(image['spl_create_prop'], 'create_bar')
+        self.assertEqual(image['spl_read_prop'], 'read_bar')
+        self.assertEqual(image['spl_update_prop'], 'update_bar')
+        self.assertEqual(image['spl_delete_prop'], 'delete_bar')
+        self.assertTrue('foo' not in image.keys())
+
+        # Create an image for role fake_role with extra props 'foo' and
+        # 'spl_create_prop'
+        #path = self._url('/v2/images')
+        #headers = self._headers({'content-type': 'application/json',
+        #                         'X-Roles': 'fake_role'})
+        #data = json.dumps({'name': 'image-1', 'foo': 'bar',
+        #                   'disk_format': 'aki', 'container_format': 'aki',
+        #                   'spl_create_prop': 'create_bar'})
+        #response = requests.post(path, headers=headers, data=data)
+        #self.assertEqual(201, response.status_code)
+
+        #image = json.loads(response.text)
+        #self.assertTrue('spl_create_prop' not in image.keys())
+        #self.assertTrue('foo' not in image.keys())
+
+        # The image should be mutable, including adding and removing properties
+        path = self._url('/v2/images/%s' % image_id)
+        media_type = 'application/openstack-images-v2.1-json-patch'
+        headers = self._headers({'content-type': media_type,
+                                 'X-Roles': 'spl_role'})
+        data = json.dumps([
+            {'op': 'replace', 'path': '/spl_read_prop', 'value': 'r'},
+            {'op': 'replace', 'path': '/spl_update_prop', 'value': 'u'},
+        ])
+        response = requests.patch(path, headers=headers, data=data)
+        self.assertEqual(200, response.status_code, response.text)
+
+        # Returned image entity should reflect the changes
+        image = json.loads(response.text)
+        print image
+        self.assertEqual('read_bar', image['spl_read_prop'])
+        self.assertEqual('u', image['spl_update_prop'])
+
     def test_tag_lifecycle(self):
         # Create an image with a tag - duplicate should be ignored
         path = self._url('/v2/images')

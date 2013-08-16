@@ -13,9 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from glance.common import exception
-import glance.domain.proxy
+import copy
 
+from glance.common import exception
+from glance.domain import property_utils
+import glance.domain.proxy
+import glance.openstack.common.log as logging
+
+LOG = logging.getLogger(__name__)
 
 def is_image_mutable(context, image):
     """Return True if the image is mutable in this context."""
@@ -70,6 +75,114 @@ class ImageRepoProxy(glance.domain.proxy.Repo):
     def list(self, *args, **kwargs):
         images = self.image_repo.list(*args, **kwargs)
         return [proxy_image(self.context, i) for i in images]
+
+
+class ProtectedImageRepoProxy(glance.domain.proxy.Repo):
+    def __init__(self, image_repo, context):
+        self.context = context
+        self.image_repo = image_repo
+        proxy_kwargs = {'context': self.context}
+        super(ProtectedImageRepoProxy, self).__init__(image_repo,
+                                             item_proxy_class=ProtectedImageProxy,
+                                             item_proxy_kwargs=proxy_kwargs)
+
+    def get(self, image_id):
+        return ProtectedImageProxy(self.image_repo.get(image_id),
+                                   self.context, 'read')
+
+    def list(self, *args, **kwargs):
+        images = self.image_repo.list(*args, **kwargs)
+        return [ProtectedImageProxy(image, self.context, 'read') for image in images]
+
+    def add(self, image):
+        self.image_repo.add(ProtectedImageProxy(image, self.context, 'create'))
+
+
+class ProtectedImageProxy(glance.domain.proxy.Image):
+
+    def __init__(self, image, context, operation):
+        LOG.info("###ProtectedImageProxy###")
+        self.image = image
+        self.context = context
+        self.roles = self.context.roles
+        LOG.info(type(self.roles))
+        self.protect_properties = property_utils.PropertyRules()
+        # mostly operation here is read -> get, list or create -> add
+        # remaining save, delete
+        self.image.extra_properties = ExtraPropertiesProxy(self.roles,
+                                        self.image.extra_properties,
+                                        operation)
+        LOG.info("### 2 ProtectedImageProxy###")
+        #self.image = self._protect_image(self.image, operation)
+        LOG.info("### 3 ProtectedImageProxy###")
+        super(ProtectedImageProxy, self).__init__(self.image)
+        LOG.info("### 4 ProtectedImageProxy###")
+
+    def _protect_image(self, image, operation):
+        LOG.info("### Proteting ProtectedImageProxy###")
+        extra_props = copy.deepcopy(dict(image.extra_properties))
+        LOG.info("extra props: %s" % str(extra_props))
+        LOG.info("image extra props: %s" % str(image.extra_properties))
+        image.extra_properties = {}
+        for key in extra_props.keys():
+            LOG.info("Checking extra prop %s" % key)
+            if self.protect_properties.check_property_rules(key, operation,
+                                                            self.roles):
+                LOG.info("Adding extra prop %s" % key)
+                image.extra_properties[key] = extra_props[key]
+        LOG.info("final props %s" % str(image.extra_properties))
+        return image
+
+
+class ExtraPropertiesProxy(glance.domain.ExtraProperties):
+
+    def __init__(self, roles, extra_props, operation):
+        self.roles = roles
+        self.protect_properties = property_utils.PropertyRules()
+        LOG.info("init")
+        LOG.info(str(self.roles))
+        LOG.info(str(extra_props))
+        LOG.info(str(extra_props.keys()))
+        extra_properties = {}
+        for key in extra_props.keys():
+            LOG.info("Checking extra prop %s" % key)
+            if self.protect_properties.check_property_rules(key, operation,
+                                                            self.roles):
+                LOG.info("Adding extra prop %s" % key)
+                extra_properties[key] = extra_props[key]
+        LOG.info("final props %s" % str(extra_properties))
+        super(ExtraPropertiesProxy, self).__init__(extra_properties)
+        LOG.info("###After ExtraPropertiesProxy###")
+
+    def __getitem__(self, key):
+        LOG.info("get item")
+        LOG.info(str(self.roles))
+        if self.protect_properties.check_property_rules(key, 'read',
+                                                        self.roles):
+            return dict.__getitem__(self, key)
+        else:
+            raise KeyError
+
+    def __setitem__(self, key, value):
+        LOG.info("set item")
+        try:
+            if self.__getitem__(key):
+                LOG.info("Getting item...")
+                if self.protect_properties.check_property_rules(key, 'update',
+                                                                self.roles):
+                    LOG.info("UPDATE OP!")
+                    return dict.__setitem__(self, key, value)
+        except KeyError:
+            LOG.info("KeyError")
+            if self.protect_properties.check_property_rules(key, 'create',
+                                                            self.roles):
+                return dict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        if self.protect_properties.check_property_rules(key, 'delete',
+                                                        self.roles):
+            return dict.__delitem__(self, key)
+
 
 
 class ImageMemberRepoProxy(glance.domain.proxy.Repo):

@@ -264,8 +264,8 @@ class ApiServer(Server):
     Server object that starts/stops/manages the API server
     """
 
-    def __init__(self, test_dir, port, policy_file, delayed_delete=False,
-                 pid_file=None, sock=None, **kwargs):
+    def __init__(self, test_dir, port, policy_file, property_file,
+                 delayed_delete=False, pid_file=None, sock=None, **kwargs):
         super(ApiServer, self).__init__(test_dir, port, sock=sock)
         self.server_name = 'api'
         self.server_program = 'glance-%s' % self.server_name
@@ -308,6 +308,7 @@ class ApiServer(Server):
         self.image_cache_driver = 'sqlite'
         self.policy_file = policy_file
         self.policy_default_rule = 'default'
+        self.property_protection_file = property_file
 
         self.needs_database = True
         default_sql_connection = 'sqlite:////%s/tests.sqlite' % self.test_dir
@@ -354,6 +355,7 @@ scrubber_datadir = %(scrubber_datadir)s
 image_cache_dir = %(image_cache_dir)s
 image_cache_driver = %(image_cache_driver)s
 policy_file = %(policy_file)s
+property_protection_file = %(property_protection_file)s
 policy_default_rule = %(policy_default_rule)s
 db_auto_create = False
 sql_connection = %(sql_connection)s
@@ -565,6 +567,7 @@ class FunctionalTest(test_utils.BaseTestCase):
         self.api_server = ApiServer(self.test_dir,
                                     self.api_port,
                                     self.policy_file,
+                                    self.property_file,
                                     sock=api_sock)
 
         self.registry_server = RegistryServer(self.test_dir,
