@@ -368,6 +368,77 @@ class TestImages(functional.FunctionalTest):
 
         self.stop_servers()
 
+    def test_property_protections(self):
+        # Image list should be empty
+        path = self._url('/v2/images')
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        images = json.loads(response.text)['images']
+        self.assertEqual(0, len(images))
+
+        # Create an image for role member with extra props
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json',
+                                 'X-Roles': ['member']})
+        data = json.dumps({'name': 'image-1', 'type': 'kernel', 'foo': 'bar',
+                           'disk_format': 'aki', 'container_format': 'aki',
+                           'owner_specified_foo': 'o_s_bar'})
+        response = requests.post(path, headers=headers, data=data)
+        self.assertEqual(201, response.status_code)
+
+        # Returned image entity should have both 'foo' and 'owner_specified_foo'
+        image = json.loads(response.text)
+        print str(image)
+        image_id = image['id']
+        expected_image = {
+            'status': 'queued',
+            'name': 'image-1',
+            'tags': [],
+            'visibility': 'private',
+            'self': '/v2/images/%s' % image_id,
+            'protected': False,
+            'file': '/v2/images/%s/file' % image_id,
+            'min_disk': 0,
+            'foo': 'bar',
+            'owner_specified_foo': 'o_s_bar',
+            'type': 'kernel',
+            'min_ram': 0,
+            'schema': '/v2/schemas/image',
+        }
+        for key, value in expected_image.items():
+            self.assertEqual(image[key], value, key)
+#        # Image list should now have one entry
+#        path = self._url('/v2/images')
+#        response = requests.get(path, headers=self._headers())
+#        self.assertEqual(200, response.status_code)
+#        images = json.loads(response.text)['images']
+#        self.assertEqual(1, len(images))
+#        self.assertEqual(images[0]['id'], image_id)
+#
+#        # The image should be mutable, including adding and removing properties
+#        path = self._url('/v2/images/%s' % image_id)
+#        media_type = 'application/openstack-images-v2.1-json-patch'
+#        headers = self._headers({'content-type': media_type})
+#        data = json.dumps([
+#            {'op': 'replace', 'path': '/name', 'value': 'image-2'},
+#            {'op': 'replace', 'path': '/disk_format', 'value': 'vhd'},
+#            {'op': 'replace', 'path': '/foo', 'value': 'baz'},
+#            {'op': 'add', 'path': '/ping', 'value': 'pong'},
+#            {'op': 'replace', 'path': '/protected', 'value': True},
+#            {'op': 'remove', 'path': '/type'},
+#        ])
+#        response = requests.patch(path, headers=headers, data=data)
+#        self.assertEqual(200, response.status_code, response.text)
+#
+#        # Returned image entity should reflect the changes
+#        image = json.loads(response.text)
+#        self.assertEqual('image-2', image['name'])
+#        self.assertEqual('vhd', image['disk_format'])
+#        self.assertEqual('baz', image['foo'])
+#        self.assertEqual('pong', image['ping'])
+#        self.assertEqual(True, image['protected'])
+#        self.assertFalse('type' in image, response.text)
+
     def test_tag_lifecycle(self):
         # Create an image with a tag - duplicate should be ignored
         path = self._url('/v2/images')

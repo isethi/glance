@@ -62,7 +62,6 @@ class IsolatedUnitTest(StoreClearingUnitTest):
 
     def setUp(self):
         super(IsolatedUnitTest, self).setUp()
-        self.test_dir = self.useFixture(fixtures.TempDir()).path
         policy_file = self._copy_data_file('policy.json', self.test_dir)
         self.config(sql_connection='sqlite://',
                     verbose=False,

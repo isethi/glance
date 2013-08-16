@@ -21,11 +21,13 @@ import errno
 import functools
 import os
 import shlex
+import shutil
 import socket
 import StringIO
 import subprocess
 import sys
 
+import fixtures
 from oslo.config import cfg
 import stubout
 import testtools
@@ -35,6 +37,7 @@ from glance.common import config
 from glance.common import exception
 from glance.common import wsgi
 from glance import context
+from glance.domain import property_utils
 
 CONF = cfg.CONF
 
@@ -51,6 +54,11 @@ class BaseTestCase(testtools.TestCase):
         self.addCleanup(CONF.reset)
         self.stubs = stubout.StubOutForTesting()
         self.stubs.Set(exception, '_FATAL_EXCEPTION_FORMAT_ERRORS', True)
+        self.test_dir = self.useFixture(fixtures.TempDir()).path
+        self.property_file = self._copy_data_file('property-protections.conf',
+                                                  self.test_dir)
+        self.config(property_protection_file=self.property_file)
+
 
     def tearDown(self):
         self.stubs.UnsetAll()
@@ -73,6 +81,17 @@ class BaseTestCase(testtools.TestCase):
         group = kw.pop('group', None)
         for k, v in kw.iteritems():
             CONF.set_override(k, v, group)
+
+    def _copy_data_file(self, file_name, dst_dir):
+        src_file_name = os.path.join('glance/tests/etc', file_name)
+        shutil.copy(src_file_name, dst_dir)
+        dst_file_name = os.path.join(dst_dir, file_name)
+        return dst_file_name
+
+    def set_property_protections(self, protections):
+        fap = open(CONF.property_protection_file, 'w')
+        fap.write(protections)
+        fap.close()
 
 
 class requires(object):
