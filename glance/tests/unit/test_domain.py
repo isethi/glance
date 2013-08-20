@@ -43,7 +43,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {})
+        self.assertEqual(dict(image.extra_properties), {})
         self.assertEqual(image.tags, set([]))
 
     def test_new_image(self):
@@ -63,7 +63,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {})
+        self.assertEqual(dict(image.extra_properties), {})
         self.assertEqual(image.tags, set([]))
 
     def test_new_image_with_extra_properties_and_tags(self):
@@ -86,7 +86,7 @@ class TestImageFactory(test_utils.BaseTestCase):
         self.assertEqual(image.protected, False)
         self.assertEqual(image.disk_format, None)
         self.assertEqual(image.container_format, None)
-        self.assertEqual(image.extra_properties, {'foo': 'bar'})
+        self.assertEqual(dict(image.extra_properties), {'foo': 'bar'})
         self.assertEqual(image.tags, set(['one', 'two']))
 
     def test_new_image_read_only_property(self):

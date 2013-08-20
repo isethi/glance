@@ -857,3 +857,122 @@ class TestImageRepoProxy(utils.BaseTestCase):
                           setattr, images[1], 'name', 'Wally')
         self.assertRaises(exception.Forbidden,
                           setattr, images[2], 'name', 'Calvin')
+
+
+class TestExtraPropertiesProxy(utils.BaseTestCase):
+
+    def test_read_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        test_result = extra_prop_proxy['foo']
+        self.assertEqual(test_result, 'bar')
+
+    def test_read_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        test_result = extra_prop_proxy['foo']
+        self.assertEqual(test_result, 'bar')
+    
+    def test_read_extra_property_as_unpermitted_role(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['unpermitted_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+    
+    def test_update_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['foo'] = 'par'
+        self.assertEqual(extra_prop_proxy['foo'], 'par')
+    
+    def test_update_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['foo'] = 'par'
+        self.assertEqual(extra_prop_proxy['foo'], 'par')
+    
+    def test_update_extra_property_as_unpermitted_role_after_read(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertEqual(extra_prop_proxy['spl_read_prop'], 'bar')
+    
+    def test_update_extra_property_as_unpermitted_role_after_create(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'spl_read_prop')
+    
+    def test_create_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['boo'] = 'doo'
+        self.assertEqual(extra_prop_proxy['boo'], 'doo')
+    
+    def test_create_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        extra_prop_proxy['boo'] = 'doo'
+        self.assertEqual(extra_prop_proxy['boo'], 'doo')
+    
+    def test_create_extra_property_as_unpermitted_role(self):
+        extra_properties = {}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'spl_read_prop')
+    
+    def test_delete_extra_property_as_permitted_role_after_create(self):
+        extra_properties = {'foo':'bar'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'create')
+        del extra_prop_proxy['foo']
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+    
+    def test_delete_extra_property_as_permitted_role_after_read(self):
+        extra_properties = {'foo':'bar'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        del extra_prop_proxy['foo']
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+    
+    def test_create_extra_property_as_unpermitted_role(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties,
+                                                              'read')
+        del extra_prop_proxy['spl_read_prop']
+        self.assertEqual(extra_prop_proxy['spl_read_prop'], 'bar')
