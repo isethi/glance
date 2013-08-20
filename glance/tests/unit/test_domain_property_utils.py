@@ -54,7 +54,7 @@ class TestPropertyRules(utils.BaseTestCase):
     def test_check_property_rules_read_unpermitted_role(self):
         self.rules_checker = property_utils.PropertyRules()
         self.assertFalse(self.rules_checker.check_property_rules('test_prop',
-                        'read', ['member']))
+                        'read', ['test_role]']))
 
     def test_check_property_rules_create_permitted_admin_role(self):
         self.rules_checker = property_utils.PropertyRules()
@@ -69,7 +69,7 @@ class TestPropertyRules(utils.BaseTestCase):
     def test_check_property_rules_create_unpermitted_role(self):
         self.rules_checker = property_utils.PropertyRules()
         self.assertFalse(self.rules_checker.check_property_rules('test_prop',
-                        'create', ['member']))
+                        'create', ['test_role']))
 
     def test_check_property_rules_update_permitted_admin_role(self):
         self.rules_checker = property_utils.PropertyRules()
@@ -84,7 +84,7 @@ class TestPropertyRules(utils.BaseTestCase):
     def test_check_property_rules_update_unpermitted_role(self):
         self.rules_checker = property_utils.PropertyRules()
         self.assertFalse(self.rules_checker.check_property_rules('test_prop',
-                        'update', ['member']))
+                        'update', ['test_role']))
 
     def test_check_property_rules_delete_permitted_admin_role(self):
         self.rules_checker = property_utils.PropertyRules()
@@ -99,4 +99,4 @@ class TestPropertyRules(utils.BaseTestCase):
     def test_check_property_rules_delete_unpermitted_role(self):
         self.rules_checker = property_utils.PropertyRules()
         self.assertFalse(self.rules_checker.check_property_rules('test_prop',
-                        'delete', ['member']))
+                        'delete', ['test_role']))

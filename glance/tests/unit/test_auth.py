@@ -857,3 +857,41 @@ class TestImageRepoProxy(utils.BaseTestCase):
                           setattr, images[1], 'name', 'Wally')
         self.assertRaises(exception.Forbidden,
                           setattr, images[2], 'name', 'Calvin')
+
+
+class TestExtraPropertiesProxy(utils.BaseTestCase):
+    #def setUp(self):
+    #    super(TestExtraPropertiesProxy, self).setUp()
+    #    extra_properties = {}
+    #    extra_prop_proxy = authorization.ExtraPropertiesProxy()
+
+    def test_read_extra_property_as_admin(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties)
+        test_result = extra_prop_proxy['foo']
+        self.assertEqual(test_result, 'bar')
+
+    def test_read_extra_property_as_unpermitted_role(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['unpermitted_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties)
+        self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
+    
+    def test_update_extra_property_as_admin(self):
+        extra_properties = {'foo':'bar','ping':'pong'}
+        roles = ['admin']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties)
+        extra_prop_proxy['foo'] = 'par'
+        self.assertEqual(extra_prop_proxy['foo'], 'par')
+    
+    def test_update_extra_property_as_unpermitted_role(self):
+        extra_properties = {'spl_read_prop':'bar'}
+        roles = ['spl_role']
+        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+                                                              extra_properties)
+        extra_prop_proxy['spl_read_prop'] = 'par'
+        self.assertEqual(extra_prop_proxy['spl_read_prop'], 'bar')
