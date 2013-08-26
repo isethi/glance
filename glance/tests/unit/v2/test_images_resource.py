@@ -419,12 +419,13 @@ class TestImagesController(test_utils.BaseTestCase):
         }
         self.db.image_create(None, image)
         self.db.image_update(None, image['id'],
-                             {'properties': {'yin': 'yang'}},
+                             {'properties': {'owner_specified_yin': 'yang'}},
                              purge_props=True)
 
         request = unit_test_utils.get_fake_request()
         output = self.controller.show(request, image['id'])
-        self.assertEqual(output.extra_properties['yin'], 'yang')
+        self.assertEqual(output.extra_properties['owner_specified_yin'],
+                         'yang')
 
     def test_show_non_existent(self):
         request = unit_test_utils.get_fake_request()
@@ -509,13 +510,15 @@ class TestImagesController(test_utils.BaseTestCase):
                           request, UUID1, changes=[])
 
     def test_update_replace_base_attribute(self):
-        self.db.image_update(None, UUID1, {'properties': {'foo': 'bar'}})
+        self.db.image_update(None, UUID1,
+                             {'properties': {'owner_specified_foo': 'bar'}})
         request = unit_test_utils.get_fake_request()
         changes = [{'op': 'replace', 'path': ['name'], 'value': 'fedora'}]
         output = self.controller.update(request, UUID1, changes)
         self.assertEqual(output.image_id, UUID1)
         self.assertEqual(output.name, 'fedora')
-        self.assertEqual(output.extra_properties, {'foo': 'bar'})
+        self.assertEqual(output.extra_properties,
+                         {'owner_specified_foo': 'bar'})
         self.assertNotEqual(output.created_at, output.updated_at)
 
     def test_update_replace_tags(self):
@@ -530,27 +533,33 @@ class TestImagesController(test_utils.BaseTestCase):
 
     def test_update_replace_property(self):
         request = unit_test_utils.get_fake_request()
-        properties = {'foo': 'bar', 'snitch': 'golden'}
+        properties = {'owner_specified_foo': 'bar',
+                      'owner_specified_snitch': 'golden'}
         self.db.image_update(None, UUID1, {'properties': properties})
 
         output = self.controller.show(request, UUID1)
-        self.assertEqual(output.extra_properties['foo'], 'bar')
-        self.assertEqual(output.extra_properties['snitch'], 'golden')
+        self.assertEqual(output.extra_properties['owner_specified_foo'],
+                         'bar')
+        self.assertEqual(output.extra_properties['owner_specified_snitch'],
+                         'golden')
 
         changes = [
-            {'op': 'replace', 'path': ['foo'], 'value': 'baz'},
+            {'op': 'replace', 'path': ['owner_specified_foo'],
+             'value': 'baz'},
         ]
         output = self.controller.update(request, UUID1, changes)
         self.assertEqual(output.image_id, UUID1)
-        self.assertEqual(output.extra_properties['foo'], 'baz')
-        self.assertEqual(output.extra_properties['snitch'], 'golden')
+        self.assertEqual(output.extra_properties['owner_specified_foo'],
+                         'baz')
+        self.assertEqual(output.extra_properties['owner_specified_snitch'],
+                         'golden')
         self.assertNotEqual(output.created_at, output.updated_at)
 
     def test_update_replace_missing_property(self):
         request = unit_test_utils.get_fake_request()
 
         changes = [
-            {'op': 'replace', 'path': 'foo', 'value': 'baz'},
+            {'op': 'replace', 'path': 'owner_specified_foo', 'value': 'baz'},
         ]
         self.assertRaises(webob.exc.HTTPConflict,
                           self.controller.update, request, UUID1, changes)
@@ -614,15 +623,18 @@ class TestImagesController(test_utils.BaseTestCase):
         request = unit_test_utils.get_fake_request()
 
         changes = [
-            {'op': 'add', 'path': ['murphy'], 'value': 'brown'},
+            {'op': 'add', 'path': ['owner_specified_murphy'],
+             'value': 'brown'},
         ]
         output = self.controller.update(request, UUID1, changes)
         self.assertEqual(output.image_id, UUID1)
-        self.assertEqual(output.extra_properties, {'murphy': 'brown'})
+        expected_extra_prop = {'owner_specified_murphy': 'brown'}
+        self.assertEqual(output.extra_properties, expected_extra_prop)
         self.assertNotEqual(output.created_at, output.updated_at)
 
     def test_update_add_base_property(self):
-        self.db.image_update(None, UUID1, {'properties': {'foo': 'bar'}})
+        extra_prop = {'properties': {'owner_specified_foo': 'bar'}}
+        self.db.image_update(None, UUID1, extra_prop)
         request = unit_test_utils.get_fake_request()
         changes = [{'op': 'add', 'path': ['name'], 'value': 'fedora'}]
         self.assertRaises(webob.exc.HTTPConflict, self.controller.update,
@@ -630,14 +642,15 @@ class TestImagesController(test_utils.BaseTestCase):
 
     def test_update_add_property_already_present(self):
         request = unit_test_utils.get_fake_request()
-        properties = {'foo': 'bar'}
+        properties = {'owner_specified_foo': 'bar'}
         self.db.image_update(None, UUID1, {'properties': properties})
 
         output = self.controller.show(request, UUID1)
-        self.assertEqual(output.extra_properties['foo'], 'bar')
+        self.assertEqual(output.extra_properties['owner_specified_foo'],
+                         'bar')
 
         changes = [
-            {'op': 'add', 'path': ['foo'], 'value': 'baz'},
+            {'op': 'add', 'path': ['owner_specified_foo'], 'value': 'baz'},
         ]
         self.assertRaises(webob.exc.HTTPConflict,
                           self.controller.update, request, UUID1, changes)
@@ -698,7 +711,8 @@ class TestImagesController(test_utils.BaseTestCase):
                           request, UUID2, changes)
 
     def test_update_remove_base_property(self):
-        self.db.image_update(None, UUID1, {'properties': {'foo': 'bar'}})
+        extra_prop = {'properties': {'owner_specified_foo': 'bar'}}
+        self.db.image_update(None, UUID1, extra_prop)
         request = unit_test_utils.get_fake_request()
         changes = [{'op': 'remove', 'path': ['name']}]
         self.assertRaises(webob.exc.HTTPForbidden, self.controller.update,
@@ -706,19 +720,23 @@ class TestImagesController(test_utils.BaseTestCase):
 
     def test_update_remove_property(self):
         request = unit_test_utils.get_fake_request()
-        properties = {'foo': 'bar', 'snitch': 'golden'}
+        properties = {'owner_specified_foo': 'bar',
+                      'owner_specified_snitch': 'golden'}
         self.db.image_update(None, UUID1, {'properties': properties})
 
         output = self.controller.show(request, UUID1)
-        self.assertEqual(output.extra_properties['foo'], 'bar')
-        self.assertEqual(output.extra_properties['snitch'], 'golden')
+        self.assertEqual(output.extra_properties['owner_specified_foo'],
+                         'bar')
+        self.assertEqual(output.extra_properties['owner_specified_snitch'],
+                         'golden')
 
         changes = [
-            {'op': 'remove', 'path': ['snitch']},
+            {'op': 'remove', 'path': ['owner_specified_snitch']},
         ]
         output = self.controller.update(request, UUID1, changes)
         self.assertEqual(output.image_id, UUID1)
-        self.assertEqual(output.extra_properties, {'foo': 'bar'})
+        self.assertEqual(output.extra_properties,
+                         {'owner_specified_foo': 'bar'})
         self.assertNotEqual(output.created_at, output.updated_at)
 
     def test_update_remove_missing_property(self):
@@ -729,6 +747,109 @@ class TestImagesController(test_utils.BaseTestCase):
         ]
         self.assertRaises(webob.exc.HTTPConflict,
                           self.controller.update, request, UUID1, changes)
+
+    def test_prop_protection_with_create_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'add', 'path': ['owner_specified_foo'], 'value': 'bar'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties['owner_specified_foo'], 'bar')
+
+    def test_prop_protection_with_create_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={},
+                                               tags=[])
+        roles = ['fake_member']
+        another_request = unit_test_utils.get_fake_request(roles=roles)
+        changes = [
+            {'op': 'add', 'path': ['owner_specified_foo'], 'value': 'bar'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties, {})
+
+    def test_prop_protection_with_show_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        extra_props = {'owner_specified_foo': 'bar'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties=extra_props,
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        output = self.controller.show(another_request, created_image.image_id)
+        self.assertEqual(output.extra_properties['owner_specified_foo'], 'bar')
+
+    def test_prop_protection_with_show_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['member'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'owner_specified_foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        output = self.controller.show(another_request, created_image.image_id)
+        self.assertRaises(KeyError, output.extra_properties.__getitem__, 'owner_specified_foo')
+
+    def test_prop_protection_with_update_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'owner_specified_foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'replace', 'path': ['owner_specified_foo'], 'value': 'baz'},
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertEqual(output.extra_properties['owner_specified_foo'], 'baz')
+
+    def test_prop_protection_with_update_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'owner_specified_foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        changes = [
+            {'op': 'replace', 'path': ['owner_specified_foo'], 'value': 'baz'},
+        ]
+        self.assertRaises(webob.exc.HTTPConflict, self.controller.update,
+                          request, UUID1, changes)
+    def test_prop_protection_with_delete_and_permitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'owner_specified_foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
+        changes = [
+            {'op': 'remove', 'path': ['owner_specified_foo']}
+        ]
+        output = self.controller.update(another_request,
+                                        created_image.image_id, changes)
+        self.assertRaises(KeyError, output.extra_properties.__getitem__, 'owner_specified_foo')
+
+    def test_prop_protection_with_delete_and_unpermitted_role(self):
+        request = unit_test_utils.get_fake_request(roles=['admin'])
+        image = {'name': 'image-1'}
+        created_image = self.controller.create(request, image=image,
+                                               extra_properties={'owner_specified_foo': 'bar'},
+                                               tags=[])
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        changes = [
+            {'op': 'remove', 'path': ['owner_specified_foo']}
+        ]
+        self.assertRaises(webob.exc.HTTPConflict, self.controller.update,
+                          request, UUID1, changes)
 
     def test_update_remove_location(self):
         request = unit_test_utils.get_fake_request()
@@ -776,14 +897,15 @@ class TestImagesController(test_utils.BaseTestCase):
 
     def test_update_multiple_changes(self):
         request = unit_test_utils.get_fake_request()
-        properties = {'foo': 'bar', 'snitch': 'golden'}
+        properties = {'owner_specified_foo': 'bar',
+                      'owner_specified_snitch': 'golden'}
         self.db.image_update(None, UUID1, {'properties': properties})
 
         changes = [
             {'op': 'replace', 'path': ['min_ram'], 'value': 128},
-            {'op': 'replace', 'path': ['foo'], 'value': 'baz'},
-            {'op': 'remove', 'path': ['snitch']},
-            {'op': 'add', 'path': ['kb'], 'value': 'dvorak'},
+            {'op': 'replace', 'path': ['owner_specified_foo'], 'value': 'baz'},
+            {'op': 'remove', 'path': ['owner_specified_snitch']},
+            {'op': 'add', 'path': ['owner_specified_kb'], 'value': 'dvorak'},
         ]
         output = self.controller.update(request, UUID1, changes)
         self.assertEqual(output.image_id, UUID1)
@@ -792,8 +914,9 @@ class TestImagesController(test_utils.BaseTestCase):
                        testtools.content.json_content(
                            json.dumps(output.extra_properties)))
         self.assertEqual(len(output.extra_properties), 2)
-        self.assertEqual(output.extra_properties['foo'], 'baz')
-        self.assertEqual(output.extra_properties['kb'], 'dvorak')
+        self.assertEqual(output.extra_properties['owner_specified_foo'], 'baz')
+        self.assertEqual(output.extra_properties['owner_specified_kb'],
+                         'dvorak')
         self.assertNotEqual(output.created_at, output.updated_at)
 
     def test_update_invalid_operation(self):

@@ -151,6 +151,8 @@ class ImagesController(object):
                     path_root in image.extra_properties):
                 msg = _("Property %s already present.")
                 raise webob.exc.HTTPConflict(msg % path_root)
+            LOG.info(type(image))
+            LOG.info(type(image.extra_properties))
             image.extra_properties[path_root] = value
 
     def _do_remove(self, req, image, change):

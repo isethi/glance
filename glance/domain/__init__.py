@@ -102,7 +102,8 @@ class Image(object):
         self.disk_format = kwargs.pop('disk_format', None)
         self.container_format = kwargs.pop('container_format', None)
         self.size = kwargs.pop('size', None)
-        self.extra_properties = kwargs.pop('extra_properties', None) or {}
+        extra_properties = kwargs.pop('extra_properties', None) or {}
+        self.extra_properties = extra_properties
         self.tags = kwargs.pop('tags', None) or []
         if kwargs:
             message = "__init__() got unexpected keyword argument '%s'"
@@ -155,14 +156,13 @@ class Image(object):
 
     def set_data(self, data, size=None):
         raise NotImplementedError()
+    #@property
+    #def extra_properties(self):
+    #    return self._extra_properties
 
-    @property
-    def extra_properties(self):
-        return self._extra_properties
-
-    @extra_properties.setter
-    def extra_properties(self, value):
-        self._extra_properties = ExtraProperties(value)
+    #@extra_properties.setter
+    #def extra_properties(self, value):
+    #    self._extra_properties = ExtraProperties(value)
 
 
 class ExtraProperties(collections.MutableMapping, dict):

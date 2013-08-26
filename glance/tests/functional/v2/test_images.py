@@ -62,7 +62,8 @@ class TestImages(functional.FunctionalTest):
         # Create an image (with a deployer-defined property)
         path = self._url('/v2/images')
         headers = self._headers({'content-type': 'application/json'})
-        data = json.dumps({'name': 'image-1', 'type': 'kernel', 'foo': 'bar',
+        data = json.dumps({'name': 'image-1', 'type': 'kernel',
+                           'owner_specified_foo': 'bar',
                            'disk_format': 'aki', 'container_format': 'aki'})
         response = requests.post(path, headers=headers, data=data)
         self.assertEqual(201, response.status_code)
@@ -83,7 +84,7 @@ class TestImages(functional.FunctionalTest):
             u'id',
             u'file',
             u'min_disk',
-            u'foo',
+            u'owner_specified_foo',
             u'type',
             u'min_ram',
             u'schema',
@@ -100,7 +101,7 @@ class TestImages(functional.FunctionalTest):
             'protected': False,
             'file': '/v2/images/%s/file' % image_id,
             'min_disk': 0,
-            'foo': 'bar',
+            'owner_specified_foo': 'bar',
             'type': 'kernel',
             'min_ram': 0,
             'schema': '/v2/schemas/image',
@@ -123,7 +124,7 @@ class TestImages(functional.FunctionalTest):
         self.assertEqual(image_id, image['id'])
         self.assertFalse('checksum' in image)
         self.assertFalse('size' in image)
-        self.assertEqual('bar', image['foo'])
+        self.assertEqual('bar', image['owner_specified_foo'])
         self.assertEqual(False, image['protected'])
         self.assertEqual('kernel', image['type'])
         self.assertTrue(image['created_at'])
@@ -137,8 +138,8 @@ class TestImages(functional.FunctionalTest):
         data = json.dumps([
             {'op': 'replace', 'path': '/name', 'value': 'image-2'},
             {'op': 'replace', 'path': '/disk_format', 'value': 'vhd'},
-            {'op': 'replace', 'path': '/foo', 'value': 'baz'},
-            {'op': 'add', 'path': '/ping', 'value': 'pong'},
+            {'op': 'replace', 'path': '/owner_specified_foo', 'value': 'baz'},
+            {'op': 'add', 'path': '/owner_specified_ping', 'value': 'pong'},
             {'op': 'replace', 'path': '/protected', 'value': True},
             {'op': 'remove', 'path': '/type'},
         ])
@@ -149,8 +150,8 @@ class TestImages(functional.FunctionalTest):
         image = json.loads(response.text)
         self.assertEqual('image-2', image['name'])
         self.assertEqual('vhd', image['disk_format'])
-        self.assertEqual('baz', image['foo'])
-        self.assertEqual('pong', image['ping'])
+        self.assertEqual('baz', image['owner_specified_foo'])
+        self.assertEqual('pong', image['owner_specified_ping'])
         self.assertEqual(True, image['protected'])
         self.assertFalse('type' in image, response.text)
 
@@ -158,13 +159,13 @@ class TestImages(functional.FunctionalTest):
         path = self._url('/v2/images/%s' % image_id)
         media_type = 'application/openstack-images-v2.0-json-patch'
         headers = self._headers({'content-type': media_type})
-        data = json.dumps([{'add': '/ding', 'value': 'dong'}])
+        data = json.dumps([{'add': '/owner_specified_ding', 'value': 'dong'}])
         response = requests.patch(path, headers=headers, data=data)
         self.assertEqual(200, response.status_code, response.text)
 
         # Returned image entity should reflect the changes
         image = json.loads(response.text)
-        self.assertEqual('dong', image['ding'])
+        self.assertEqual('dong', image['owner_specified_ding'])
 
         # Updates should persist across requests
         path = self._url('/v2/images/%s' % image_id)
@@ -173,8 +174,8 @@ class TestImages(functional.FunctionalTest):
         image = json.loads(response.text)
         self.assertEqual(image_id, image['id'])
         self.assertEqual('image-2', image['name'])
-        self.assertEqual('baz', image['foo'])
-        self.assertEqual('pong', image['ping'])
+        self.assertEqual('baz', image['owner_specified_foo'])
+        self.assertEqual('pong', image['owner_specified_ping'])
         self.assertEqual(True, image['protected'])
         self.assertFalse('type' in image, response.text)
 
@@ -368,6 +369,115 @@ class TestImages(functional.FunctionalTest):
 
         self.stop_servers()
 
+    def test_property_protections(self):
+        # Image list should be empty
+        path = self._url('/v2/images')
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(200, response.status_code)
+        images = json.loads(response.text)['images']
+        self.assertEqual(0, len(images))
+
+        ## Create an image for role member with extra props
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json',
+                                 'X-Roles': 'member'})
+        data = json.dumps({'name': 'image-1', 'type': 'kernel', 'foo': 'bar',
+                           'disk_format': 'aki', 'container_format': 'aki',
+                           'owner_specified_foo': 'o_s_bar'})
+        response = requests.post(path, headers=headers, data=data)
+        self.assertEqual(201, response.status_code)
+
+        # Returned image entity should have 'owner_specified_foo'
+        image = json.loads(response.text)
+        image_id = image['id']
+        expected_image = {
+            'status': 'queued',
+            'name': 'image-1',
+            'tags': [],
+            'visibility': 'private',
+            'self': '/v2/images/%s' % image_id,
+            'protected': False,
+            'file': '/v2/images/%s/file' % image_id,
+            'min_disk': 0,
+            'owner_specified_foo': 'o_s_bar',
+            'type': 'kernel',
+            'min_ram': 0,
+            'schema': '/v2/schemas/image',
+        }
+        for key, value in expected_image.items():
+            self.assertEqual(image[key], value, key)
+
+        # Create an image for role spl_role with extra props 'foo',
+        # 'spl_create_prop', 'spl_read_prop'
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json',
+                                 'X-Roles': 'spl_role'})
+        data = json.dumps({'name': 'image-1', 'foo': 'bar',
+                           'disk_format': 'aki', 'container_format': 'aki',
+                           'spl_create_prop': 'create_bar',
+                           'spl_read_prop': 'read_bar',
+                           'spl_update_prop': 'update_bar',
+                           'spl_delete_prop': 'delete_bar'})
+        response = requests.post(path, headers=headers, data=data)
+        self.assertEqual(201, response.status_code)
+        # Returned image entity should have only 'spl_read_foo' according to
+        # the file glance/tests/etc/property-protections.conf
+        image = json.loads(response.text)
+        image_id = image['id']
+        self.assertEqual(image['spl_create_prop'], 'create_bar')
+        self.assertEqual(image['spl_read_prop'], 'read_bar')
+        self.assertEqual(image['spl_update_prop'], 'update_bar')
+        self.assertEqual(image['spl_delete_prop'], 'delete_bar')
+        self.assertTrue('foo' not in image.keys())
+
+        # Create an image for role fake_role with extra props 'foo' and
+        # 'spl_create_prop'
+        path = self._url('/v2/images')
+        headers = self._headers({'content-type': 'application/json',
+                                 'X-Roles': 'fake_role'})
+        data = json.dumps({'name': 'image-1', 'foo': 'bar',
+                           'disk_format': 'aki', 'container_format': 'aki',
+                           'spl_create_prop': 'create_bar'})
+        response = requests.post(path, headers=headers, data=data)
+        self.assertEqual(201, response.status_code)
+
+        image = json.loads(response.text)
+        self.assertTrue('spl_create_prop' not in image.keys())
+        self.assertTrue('foo' not in image.keys())
+
+        # The image should be mutable, including adding and removing properties
+        path = self._url('/v2/images/%s' % image_id)
+        media_type = 'application/openstack-images-v2.1-json-patch'
+        headers = self._headers({'content-type': media_type,
+                                 'X-Roles': 'spl_role'})
+        data = json.dumps([
+            {'op': 'replace', 'path': '/spl_read_prop', 'value': 'r'},
+            {'op': 'replace', 'path': '/spl_update_prop', 'value': 'u'},
+            {'op': 'add', 'path': '/spl_new_prop', 'value': 'new'},
+            {'op': 'remove', 'path': '/spl_create_prop'},
+            {'op': 'remove', 'path': '/spl_delete_prop'},
+        ])
+        response = requests.patch(path, headers=headers, data=data)
+        self.assertEqual(200, response.status_code, response.text)
+
+        # Returned image entity should reflect the changes
+        image = json.loads(response.text)
+        self.assertEqual('read_bar', image['spl_read_prop'])
+        self.assertEqual('u', image['spl_update_prop'])
+        self.assertTrue('spl_new_prop' not in image.keys())
+        self.assertTrue('spl_create_prop' in image.keys())
+        self.assertTrue('spl_delete_prop' not in image.keys())
+
+        # Deletion should work
+        path = self._url('/v2/images/%s' % image_id)
+        response = requests.delete(path, headers=self._headers())
+        self.assertEqual(204, response.status_code)
+
+        # This image should be no longer be directly accessible
+        path = self._url('/v2/images/%s' % image_id)
+        response = requests.get(path, headers=self._headers())
+        self.assertEqual(404, response.status_code)
+
     def test_tag_lifecycle(self):
         # Create an image with a tag - duplicate should be ignored
         path = self._url('/v2/images')
@@ -458,13 +568,20 @@ class TestImages(functional.FunctionalTest):
         # Create 7 images
         images = []
         fixtures = [
-            {'name': 'image-3', 'type': 'kernel', 'ping': 'pong'},
-            {'name': 'image-4', 'type': 'kernel', 'ping': 'pong'},
-            {'name': 'image-1', 'type': 'kernel', 'ping': 'pong'},
-            {'name': 'image-3', 'type': 'ramdisk', 'ping': 'pong'},
-            {'name': 'image-2', 'type': 'kernel', 'ping': 'ding'},
-            {'name': 'image-3', 'type': 'kernel', 'ping': 'pong'},
-            {'name': 'image-2', 'type': 'kernel', 'ping': 'pong'},
+            {'name': 'image-3', 'type': 'kernel',
+             'owner_specified_ping': 'pong'},
+            {'name': 'image-4', 'type': 'kernel',
+             'owner_specified_ping': 'pong'},
+            {'name': 'image-1', 'type': 'kernel',
+             'owner_specified_ping': 'pong'},
+            {'name': 'image-3', 'type': 'ramdisk',
+             'owner_specified_ping': 'pong'},
+            {'name': 'image-2', 'type': 'kernel',
+             'owner_specified_ping': 'ding'},
+            {'name': 'image-3', 'type': 'kernel',
+             'owner_specified_ping': 'pong'},
+            {'name': 'image-2', 'type': 'kernel',
+             'owner_specified_ping': 'pong'},
         ]
         path = self._url('/v2/images')
         headers = self._headers({'content-type': 'application/json'})
@@ -485,7 +602,7 @@ class TestImages(functional.FunctionalTest):
 
         # Begin pagination after the first image
         template_url = ('/v2/images?limit=2&sort_dir=asc&sort_key=name'
-                        '&marker=%s&type=kernel&ping=pong')
+                        '&marker=%s&type=kernel&owner_specified_ping=pong')
         path = self._url(template_url % images[2]['id'])
         response = requests.get(path, headers=self._headers())
         self.assertEqual(200, response.status_code)
@@ -726,7 +843,8 @@ class TestImageDirectURLVisibility(functional.FunctionalTest):
         # Create an image
         path = self._url('/v2/images')
         headers = self._headers({'content-type': 'application/json'})
-        data = json.dumps({'name': 'image-1', 'type': 'kernel', 'foo': 'bar',
+        data = json.dumps({'name': 'image-1', 'type': 'kernel',
+                           'owner_specified_foo': 'bar',
                            'disk_format': 'aki', 'container_format': 'aki'})
         response = requests.post(path, headers=headers, data=data)
         self.assertEqual(201, response.status_code)
