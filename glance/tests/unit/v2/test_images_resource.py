@@ -841,7 +841,7 @@ class TestImagesController(test_utils.BaseTestCase):
                                                extra_properties={},
                                                tags=[])
         roles = ['fake_member']
-        another_request = unit_test_utils.get_fake_request(roles)
+        another_request = unit_test_utils.get_fake_request(roles=roles)
         changes = [
             {'op': 'add', 'path': ['foo'], 'value': 'bar'},
         ]
@@ -855,8 +855,7 @@ class TestImagesController(test_utils.BaseTestCase):
         created_image = self.controller.create(request, image=image,
                                                extra_properties={'foo': 'bar'},
                                                tags=[])
-        roles = ['member']
-        another_request = unit_test_utils.get_fake_request(roles)
+        another_request = unit_test_utils.get_fake_request(roles=['member'])
         output = self.controller.show(another_request, created_image.image_id)
         self.assertEqual(output.extra_properties['foo'], 'bar')
 
@@ -866,8 +865,8 @@ class TestImagesController(test_utils.BaseTestCase):
         created_image = self.controller.create(request, image=image,
                                                extra_properties={'foo': 'bar'},
                                                tags=[])
-        fake_request = unit_test_utils.get_fake_request(roles=['fake_role'])
-        output = self.controller.show(fake_request, created_image.image_id)
+        another_request = unit_test_utils.get_fake_request(roles=['fake_role'])
+        output = self.controller.show(another_request, created_image.image_id)
         self.assertRaises(KeyError, output.extra_properties.__getitem__, 'foo')
 
     def test_prop_protection_with_update_and_permitted_role(self):
