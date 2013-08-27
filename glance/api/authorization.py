@@ -16,7 +16,6 @@
 import copy
 
 from glance.common import exception
-from glance.domain import property_utils
 import glance.domain.proxy
 
 
@@ -73,81 +72,6 @@ class ImageRepoProxy(glance.domain.proxy.Repo):
     def list(self, *args, **kwargs):
         images = self.image_repo.list(*args, **kwargs)
         return [proxy_image(self.context, i) for i in images]
-
-
-class ProtectedImageRepoProxy(glance.domain.proxy.Repo):
-    def __init__(self, image_repo, context):
-        self.context = context
-        self.image_repo = image_repo
-        proxy_kwargs = {'context': self.context}
-        super(ProtectedImageRepoProxy, self).__init__(image_repo,
-                                             item_proxy_class=ProtectedImageProxy,
-                                             item_proxy_kwargs=proxy_kwargs)
-
-    def get(self, image_id):
-        return ProtectedImageProxy(self.image_repo.get(image_id),
-                                   self.context, 'read')
-
-    def list(self, *args, **kwargs):
-        images = self.image_repo.list(*args, **kwargs)
-        return [ProtectedImageProxy(image, self.context, 'read') for image in images]
-
-    def add(self, image):
-        self.image_repo.add(ProtectedImageProxy(image, self.context, 'create'))
-
-
-class ProtectedImageProxy(glance.domain.proxy.Image):
-
-    def __init__(self, image, context, operation):
-        self.image = image
-        self.context = context
-        self.roles = self.context.roles
-        self.protect_properties = property_utils.PropertyRules()
-        if operation not in ['read', 'create']:
-        # image class needs to be created or read before updating it or deleting
-        # it
-            raise exception.Forbidden(_("Get/Create Image before editing it"))
-        self.image.extra_properties = ExtraPropertiesProxy(self.roles,
-                                          self.image.extra_properties,
-                                          operation)
-        super(ProtectedImageProxy, self).__init__(self.image)
-
-
-class ExtraPropertiesProxy(glance.domain.ExtraProperties):
-
-    def __init__(self, roles, extra_props, operation):
-        self.roles = roles
-        self.protect_properties = property_utils.PropertyRules()
-        extra_properties = {}
-        for key in extra_props.keys():
-            if self.protect_properties.check_property_rules(key, operation,
-                                                            self.roles):
-                extra_properties[key] = extra_props[key]
-        super(ExtraPropertiesProxy, self).__init__(extra_properties)
-
-    def __getitem__(self, key):
-        if self.protect_properties.check_property_rules(key, 'read',
-                                                        self.roles):
-            return dict.__getitem__(self, key)
-        else:
-            raise KeyError
-
-    def __setitem__(self, key, value):
-        try:
-            if self.__getitem__(key):
-                if self.protect_properties.check_property_rules(key, 'update',
-                                                                self.roles):
-                    return dict.__setitem__(self, key, value)
-        except KeyError:
-            if self.protect_properties.check_property_rules(key, 'create',
-                                                            self.roles):
-                return dict.__setitem__(self, key, value)
-
-    def __delitem__(self, key):
-        if self.protect_properties.check_property_rules(key, 'delete',
-                                                        self.roles):
-            return dict.__delitem__(self, key)
-
 
 
 class ImageMemberRepoProxy(glance.domain.proxy.Repo):

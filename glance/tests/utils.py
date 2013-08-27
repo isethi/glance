@@ -35,9 +35,9 @@ import webob
 
 from glance.common import config
 from glance.common import exception
+from glance.common import property_utils
 from glance.common import wsgi
 from glance import context
-from glance.domain import property_utils
 
 CONF = cfg.CONF
 

@@ -15,6 +15,7 @@
 
 from glance.api import authorization
 from glance.api import policy
+from glance.api import property_protection
 import glance.db
 import glance.domain
 import glance.notifier
@@ -58,7 +59,7 @@ class Gateway(object):
                 store_image_repo, context, self.policy)
         notifier_image_repo = glance.notifier.ImageRepoProxy(
                 policy_image_repo, context, self.notifier)
-        protected_image_repo = authorization.ProtectedImageRepoProxy(
+        protected_image_repo = property_protection.ProtectedImageRepoProxy(
                 notifier_image_repo, context)
         authorized_image_repo = authorization.ImageRepoProxy(
                 protected_image_repo, context)

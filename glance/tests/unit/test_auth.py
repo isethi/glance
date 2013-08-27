@@ -21,6 +21,7 @@ import stubout
 import webob
 
 from glance.api import authorization
+from glance.api import property_protection
 from glance.common import auth
 from glance.common import exception
 import glance.domain
@@ -896,7 +897,7 @@ class TestProtectedImageRepoProxy(utils.BaseTestCase):
         ]
         self.context = glance.context.RequestContext(roles=['spl_role'])
         image_repo = self.ImageRepoStub(self.fixtures)
-        self.image_repo = authorization.ProtectedImageRepoProxy(image_repo,
+        self.image_repo = property_protection.ProtectedImageRepoProxy(image_repo,
                                                        self.context)
 
     def test_get_image(self):
@@ -947,7 +948,7 @@ class TestProtectedImageProxy(utils.BaseTestCase):
         context = glance.context.RequestContext(roles=['spl_role'])
         extra_prop = {'spl_create_prop': 'create', 'random': 'prop'}
         image = self.ImageStub(extra_prop)
-        result_image = authorization.ProtectedImageProxy(image, context,
+        result_image = property_protection.ProtectedImageProxy(image, context,
                                                          'create')
         result_extra_props = result_image.extra_properties
         self.assertEqual(result_extra_props['spl_create_prop'], 'create')
@@ -957,7 +958,7 @@ class TestProtectedImageProxy(utils.BaseTestCase):
         context = glance.context.RequestContext(roles=['spl_role'])
         extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
         image = self.ImageStub(extra_prop)
-        result_image = authorization.ProtectedImageProxy(image, context, 'read')
+        result_image = property_protection.ProtectedImageProxy(image, context, 'read')
         result_extra_props = result_image.extra_properties
         self.assertEqual(result_extra_props['spl_read_prop'], 'read')
         self.assertFalse('spl_fake_prop' in result_extra_props.keys())
@@ -967,16 +968,16 @@ class TestProtectedImageProxy(utils.BaseTestCase):
         extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
         image = self.ImageStub(extra_prop)
         self.assertRaises(exception.Forbidden,
-                         authorization.ProtectedImageProxy, image, context,
-                         'update')
+                         property_protection.ProtectedImageProxy, image,
+                         context, 'update')
 
     def test_delete_image_with_extra_prop(self):
         context = glance.context.RequestContext(roles=['spl_role'])
         extra_prop = {'spl_read_prop': 'read', 'spl_fake_prop': 'prop'}
         image = self.ImageStub(extra_prop)
         self.assertRaises(exception.Forbidden,
-                         authorization.ProtectedImageProxy, image, context,
-                         'delete')
+                         property_protection.ProtectedImageProxy, image,
+                         context, 'delete')
 
 
 class TestExtraPropertiesProxy(utils.BaseTestCase):
@@ -984,7 +985,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_read_extra_property_as_permitted_role_after_read(self):
         extra_properties = {'foo':'bar','ping':'pong'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         test_result = extra_prop_proxy['foo']
@@ -993,7 +994,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_read_extra_property_as_permitted_role_after_create(self):
         extra_properties = {'foo':'bar','ping':'pong'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         test_result = extra_prop_proxy['foo']
@@ -1002,7 +1003,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_read_extra_property_as_unpermitted_role(self):
         extra_properties = {'foo':'bar','ping':'pong'}
         roles = ['unpermitted_role']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         self.assertRaises(KeyError, extra_prop_proxy.__getitem__, 'foo')
@@ -1010,7 +1011,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_update_extra_property_as_permitted_role_after_read(self):
         extra_properties = {'foo':'bar','ping':'pong'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         extra_prop_proxy['foo'] = 'par'
@@ -1019,7 +1020,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_update_extra_property_as_permitted_role_after_create(self):
         extra_properties = {'foo':'bar','ping':'pong'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         extra_prop_proxy['foo'] = 'par'
@@ -1028,7 +1029,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_update_extra_property_as_unpermitted_role_after_read(self):
         extra_properties = {'spl_read_prop':'bar'}
         roles = ['spl_role']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         extra_prop_proxy['spl_read_prop'] = 'par'
@@ -1037,7 +1038,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_update_extra_property_as_unpermitted_role_after_create(self):
         extra_properties = {'spl_read_only_prop':'bar'}
         roles = ['spl_role']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         extra_prop_proxy['spl_read_only_prop'] = 'par'
@@ -1047,7 +1048,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_create_extra_property_as_permitted_role_after_create(self):
         extra_properties = {}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         extra_prop_proxy['boo'] = 'doo'
@@ -1056,7 +1057,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_create_extra_property_as_permitted_role_after_read(self):
         extra_properties = {}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         extra_prop_proxy['boo'] = 'doo'
@@ -1065,7 +1066,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_create_extra_property_as_unpermitted_role(self):
         extra_properties = {}
         roles = ['spl_role']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         extra_prop_proxy['spl_read_prop'] = 'par'
@@ -1074,7 +1075,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_delete_extra_property_as_permitted_role_after_create(self):
         extra_properties = {'foo':'bar'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'create')
         del extra_prop_proxy['foo']
@@ -1083,7 +1084,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_delete_extra_property_as_permitted_role_after_read(self):
         extra_properties = {'foo':'bar'}
         roles = ['admin']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         del extra_prop_proxy['foo']
@@ -1092,7 +1093,7 @@ class TestExtraPropertiesProxy(utils.BaseTestCase):
     def test_create_extra_property_as_unpermitted_role(self):
         extra_properties = {'spl_read_prop':'bar'}
         roles = ['spl_role']
-        extra_prop_proxy = authorization.ExtraPropertiesProxy(roles,
+        extra_prop_proxy = property_protection.ExtraPropertiesProxy(roles,
                                                               extra_properties,
                                                               'read')
         del extra_prop_proxy['spl_read_prop']

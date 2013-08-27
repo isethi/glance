@@ -18,7 +18,7 @@ import shutil
 
 import fixtures
 
-from glance.domain import property_utils
+from glance.common import property_utils
 from glance.tests import utils
 
 class TestPropertyRules(utils.BaseTestCase):
