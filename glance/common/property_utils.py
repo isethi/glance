@@ -20,6 +20,7 @@ import re
 from oslo.config import cfg
 import webob.exc
 
+from glance.common import exception
 from glance.openstack.common import log as logging
 
 CONFIG = ConfigParser.SafeConfigParser()
@@ -43,8 +44,10 @@ def is_property_protection_enabled():
 
 class PropertyRules(object):
 
-    def __init__(self):
+    def __init__(self, policy_enforcer=None):
         self.rules = {}
+        self.policies = []
+        self.policy_enforcer = policy_enforcer
         self._load_rules()
 
     def _load_rules(self):
@@ -66,7 +69,13 @@ class PropertyRules(object):
             for operation in operations:
                 roles = CONFIG.get(property_exp, operation)
                 if roles:
-                    roles = [role.strip() for role in roles.split(',')]
+                    if roles.startswith("policy:"):
+                        policy_rule = role[len("policy:"):]
+                        self._add_policy(str(compiled_rule), operation,
+                                         policy_rule)
+                        roles = [roles]
+                    else:
+                        roles = [role.strip() for role in roles.split(',')]
                     property_dict[operation] = roles
                 else:
                     property_dict[operation] = []
@@ -78,6 +87,9 @@ class PropertyRules(object):
 
             self.rules[compiled_rule] = property_dict
 
+        if self.policies:
+            self._load_policies()
+
     def _compile_rule(self, rule):
         try:
             return re.compile(rule)
@@ -87,7 +99,36 @@ class PropertyRules(object):
             LOG.error(msg)
             raise webob.exc.HTTPInternalServerError(explanation=msg)
 
-    def check_property_rules(self, property_name, action, roles):
+    def _add_policy(self, property_exp, action, rule):
+        """ Add policy rules to the policy enforcer.
+        For example, if property-protections.conf has a config:
+        [prop_a]
+        create = policy:glance_creator
+        then the corresponding policy rule would be:
+        "prop_a:create": "rule:glance_creator"
+        where glance_creator is defined in policy.json. For example:
+        "glance:creator": "role:admin or role:glance_create_user"
+        """
+        rule_name = "\"%s:%s\"" % (property_exp, action)
+        property_rule = ": \"%s\"" % (rule)
+        policy_rule = rule_name + property_rule
+        self.policies.append(policy_rule)
+
+    def _load_policies(self):
+        LOG.info("Reloading policy rules for property protection")
+        policy_dict = "{" + ",".join(self.policies) + "}"
+        self.policy_enforcer.load_rules(policy_dict)
+
+    def _check_policy(self, property_exp, action, context):
+        try:
+            self.target = ":".join([property_exp, action])
+            self.policy_enforcer.enforce(context, self.target, {})
+        except exception.Forbidden:
+            return False
+        return True
+
+    def check_property_rules(self, property_name, action, context):
+        roles = context.roles
         if not self.rules:
             return True
 
@@ -96,6 +137,11 @@ class PropertyRules(object):
 
         for rule_exp, rule in self.rules.items():
             if rule_exp.search(str(property_name)):
-                if set(roles).intersection(set(rule.get(action))):
+                rule_roles = rule.get(action)
+                if rule_roles:
+                    if rule_roles[0].startswith("policy:"):
+                        return self._check_policy(str(rule_exp), action,
+                                                  context)
+                if set(roles).intersection(set(rule_roles)):
                     return True
         return False

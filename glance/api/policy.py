@@ -61,7 +61,7 @@ class Enforcer(object):
         rules_obj = policy.Rules(rules, self.default_rule)
         policy.set_rules(rules_obj)
 
-    def load_rules(self):
+    def load_rules(self, additional_rules=None):
         """Set the rules found in the json file on disk"""
         if self.policy_path:
             rules = self._read_policy_file()
@@ -70,6 +70,10 @@ class Enforcer(object):
             rules = DEFAULT_RULES
             rule_type = "default "
 
+        if additional_rules:
+            rules_dict = json.loads(additional_rules)
+            for k, v in rules_dict.items():
+                rules[k] = policy.parse_rule(v)
         text_rules = dict((k, str(v)) for k, v in rules.items())
         LOG.debug(_('Loaded %(rule_type)spolicy rules: %(text_rules)s') %
                   locals())
